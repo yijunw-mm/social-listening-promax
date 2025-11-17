@@ -7,8 +7,8 @@ from backend.data_loader import load_chat_data
 
 from backend.routers import general_tab1
 from backend.routers import brand_tab2
-from backend.routers import time_comparison_tab3
-from backend.routers import brand_camparison_tab4
+#from backend.routers import time_comparison_tab3
+#from backend.routers import brand_camparison_tab4
 
 app = FastAPI()
 
@@ -29,5 +29,5 @@ def root():
 
 app.include_router(general_tab1.router)
 app.include_router(brand_tab2.router)
-app.include_router(time_comparison_tab3.router)
-app.include_router(brand_camparison_tab4.router)
+#app.include_router(time_comparison_tab3.router)
+#app.include_router(brand_camparison_tab4.router)

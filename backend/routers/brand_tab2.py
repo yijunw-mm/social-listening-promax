@@ -10,12 +10,10 @@ import re
 from keybert import KeyBERT
 from sentence_transformers import SentenceTransformer, util 
 import spacy
-from backend.data_loader import load_chat_data
+from backend.data_loader import query_chat,load_default_groups
 
 router = APIRouter()
-#df_cleaned = pd.read_csv("data/processing_output/clean_chat_df/2025/cleaned_chat_dataframe.csv",dtype={"group_id":str})
-df_cleaned = load_chat_data()
-df_cleaned['clean_text']=(df_cleaned['clean_text'].str.replace(r"\s+'s","'s",regex=True))
+
 # load brand keywrod
 brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(lambda x:list(x)).to_dict()
@@ -23,50 +21,50 @@ brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(lambda x
 # temporary store user-add keywords
 custom_keywords_dict = {brand: set() for brand in brand_keyword_dict}
 
-
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
                           window_size: int = 6, merge_overlap: bool = True):
 
-
     indices = []
-    for i, text in enumerate(df["clean_text"].dropna()):
-        if any(alias in text for alias in brand_keyword_map.get(brand, [])):
-            start = max(0, i - window_size)
-            end = min(len(df), i + window_size + 1)
-            indices.append((start, end))
-
-
+    for row in df.itertuples(index=False):
+        text=row.clean_text.lower()
+        if re.search(rf"\b{re.escape(brand)}\b",text):
+            start = max(1, row.row_id - window_size)
+            end = row.row_id + window_size 
+            subset = df[
+                (df["group_id"] == row.group_id) &
+                (df["row_id"].between(start,end))]
+            indices.append((row.group_id,start, end))
     if not indices:
         return []
 
-
     # combine overlap window
-    if merge_overlap:
-        merged = []
-        current_start, current_end = indices[0]
-        for s, e in indices[1:]:
-            if s <= current_end:  # if there is overlap
+    merged = []
+    for gid in set(i[0] for i in indices):
+        group_indices = [(s, e) for g, s, e in indices if g == gid]
+        group_indices.sort()
+
+        current_start, current_end = group_indices[0]
+        for s, e in group_indices[1:]:
+            if s <= current_end:
                 current_end = max(current_end, e)
             else:
-                merged.append((current_start, current_end))
+                merged.append((gid, current_start, current_end))
                 current_start, current_end = s, e
-        merged.append((current_start, current_end))
-        indices = merged
+        merged.append((gid, current_start, current_end))
 
 
     # collect corpus
     contexts = []
-    for s, e in indices:
-        subset = df.iloc[s:e]
+    for gid, s, e in merged:
+        subset = df[(df["group_id"] == gid) & (df["row_id"].between(s, e))]
         contexts.append({
+            "group_id":gid,
             "start_idx": s,
             "end_idx": e,
             "context": subset["clean_text"].tolist()
         })
 
-
     return contexts
-
 
 @router.get("/brand/keyword-frequency")
 def keyword_frequency(
@@ -78,29 +76,53 @@ def keyword_frequency(
     window_size:int=6,
     merge_overlap:bool =True
 ):
-    # Step 1 filter dataframe
-    df = df_cleaned.copy()
-    df['clean_text'] = df["clean_text"].fillna("").astype(str)
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
-    if year:
-        df = df[df["year"]==year]
-    if month:
-        df = df[df["month"].isin(month)]
-    if quarter:
-        df = df[df["quarter"] == quarter]
-
-    # Step 2: get brand keyword list
+    # --- 1. validate brand name
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found in keyword dictionary."}
     base_keywords = set(brand_keyword_dict[brand_name])
     custom_keywords = custom_keywords_dict.get(brand_name, set())
     all_keywords = list(base_keywords.union(custom_keywords))
 
-    # New step 3 extract the window message
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id,
+        row_number() over (PARTITION BY group_id ORDER BY datetime) AS row_id,
+        clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- Filter by date ----
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"keywords": []}
+    
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
+
+    # ---- 5. extract the window message ---
     contexts = extract_brand_context(
-        df,
-        brand=brand_name,
+        df, brand=brand_name,
         brand_keyword_map = brand_keyword_dict,
         window_size=window_size,
         merge_overlap=merge_overlap
@@ -108,18 +130,19 @@ def keyword_frequency(
     if not contexts:
         return {"error":f"No mention about brand {brand_name}"}
     
-    # step 4 combine
     context_texts=[]
     for c in contexts:
         context_texts.extend(c["context"])
 
-    # Step 5: count keyword frequency
+    # ---- 6. count keyword frequency ----
     freq_counter = Counter()
     for text in context_texts:
-        words = re.findall(r"\w+",text.lower())
+        t = text.lower()
         for kw in all_keywords:
-            if kw.lower() in words:
+            if re.search(rf"\b{re.escape(kw.lower())}\b", t):
                 freq_counter[kw] += 1
+
+    # fall back: return common words
     if not freq_counter:
         all_words = " ".join(context_texts).split()
         filtered_words = [w for w in all_words if w.isalpha() and len(w)>2]
@@ -127,7 +150,6 @@ def keyword_frequency(
         top_fallback = [{"keyword":w, "count":c} for w, c in counter.most_common(5)]
         return top_fallback
 
-    # Step 4: return output
     result = [{"keyword": kw, "count": freq} for kw, freq in freq_counter.items()]
     result.sort(key=lambda x: x["count"], reverse=True)
     return result
@@ -173,14 +195,11 @@ def custom_rules(text, base_score):
     else:
         sentiment = "neutral"
 
-
     return {
         "compound": compound,
         "sentiment": sentiment,
         "rule":applied
     }
-
-
 
 def explain_sentiment(text, top_n=5):
     """return the contribution"""
@@ -199,7 +218,6 @@ def explain_sentiment(text, top_n=5):
         "negatives": negatives
     }
 
-
 @router.get("/brand/sentiment-analysis")
 def brand_sentiment_analysis_vader(
     brand_name: str,
@@ -208,21 +226,42 @@ def brand_sentiment_analysis_vader(
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
 ):
-    # 1. get data
-    df = df_cleaned.copy()
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
-    if year:
-        df = df[df["year"] == year]
-    if month:
-        df = df[df["month"].isin(month)]
-    if quarter:
-        df = df[df["quarter"] == quarter]
-
-    # 2. get brand name
+    # 1. get brand name
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
-    #keywords = brand_keyword_dict[brand_name]
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- Filter by date ----
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"brand": brand_name, "total_mentions": 0, "sentiment_percent": [], "sentiment_count": [], "examples": []}
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
 
     # 3. get the message containing brand name
     matched_texts = [
@@ -287,9 +326,6 @@ def _overlap_fraction(a, b):
     if not set_a or not set_b:
         return 0
     return len(set_a & set_b) / min(len(set_a), len(set_b))
-
-
-
 
 def remove_overlapping_phrases(keywords, overlap_ratio=0.6):
     """
@@ -361,20 +397,44 @@ def consumer_perception(brand_name: str,
                         month: Optional[int] = None,
                         quarter: Optional[int] = None,
                         top_k: int = 20):
-    df = df_cleaned.copy()
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
-    if year:
-        df = df[df["year"] == year]
-    if month:
-        df = df[df["month"] == month]
-    if quarter:
-        df = df[df["quarter"] == quarter]
 
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
 
-    
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- Filter by date ----
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"brand":brand_name, "associate_words":[]}
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
+    # --- 5. extract brand mention message ---
     relevant_texts = (
         df["clean_text"].dropna().astype(str)
         .loc[lambda s:s.str.contains(rf"\b{re.escape(brand_name)}\b",case=False,na=False)].tolist())

@@ -12,6 +12,7 @@ numpy
 spacy
 sentence-transformers
 keybert
+duckdb
 
 # Frontend deps
 streamlit
