@@ -6,8 +6,16 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize 
 
 STOPWORDS = set(stopwords.words("english"))
+emoji_pattern = re.compile(
+    "["u"\U0001F600-\U0001F64F"  # emoticons
+    u"\U0001F300-\U0001F5FF"     # symbols & pictographs
+    u"\U0001F680-\U0001F6FF"     # transport & map symbols
+    u"\U0001F1E0-\U0001F1FF"     # flags
+    "]+", flags=re.UNICODE
+)
+
 def remove_emoji(text):
-    return emoji.replace_emoji(text,replace='')
+    return emoji_pattern.sub(r'',text)
 
 def replace_slang(text:str,slang_dict:dict) ->str:
     """replace the slang to formal english"""
@@ -24,8 +32,8 @@ def clean_text(text:str,slang_dict:dict =None) ->str:
     
     #remove website link, number, emoji
     text = re.sub(r'http\S+|www\S+', '', text)
-    text = re.sub(r'\S+@\S+','',text)
-    text = re.sub(r'\d+','', text)
+    text = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '', text)
+    text = re.sub(r'\b\d+\b', '', text)
     text = remove_emoji(text)
     #remove punctuation
     text = text.translate(str.maketrans("","",string.punctuation))
@@ -58,10 +66,10 @@ def clean_dataframe(df:pd.DataFrame,slang_dict=None) ->pd.DataFrame:
 if __name__=="__main__":
     df_slang=pd.read_csv("data/other_data/slang_to_formal.csv")
     slang_dict = dict(zip(df_slang['slang'].str.lower(),df_slang['formal'].str.lower()))
-    df = pd.read_csv("data/processing_output/structure_chat/2025/structured_chat.csv")
+    df = pd.read_parquet("data/processing_output/structure_chat/2024/structured_chat.parquet")
 
     df_cleaned = clean_dataframe(df,slang_dict)
-    output_path = "data/processing_output/clean_chat_df/2025/cleaned_chat_dataframe.csv"
-    df_cleaned.to_csv(output_path,index=False)
+    output_path = "data/processing_output/clean_chat_df/2024/cleaned_chat_dataframe_new.parquet"
+    df_cleaned.to_parquet(output_path,index=False)
     print(f"✅save to {output_path}")
     

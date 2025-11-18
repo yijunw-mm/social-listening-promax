@@ -5,12 +5,12 @@ from collections import Counter, defaultdict
 import json
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from backend.data_loader import load_chat_data
+from backend.data_loader import query_chat, load_default_groups
 
 router = APIRouter()
-#df_cleaned = pd.read_csv("data/processing_output/clean_chat_df/2025/cleaned_chat_dataframe.csv",dtype={"group_id":str})
-df_cleaned = load_chat_data()
-df_cleaned['clean_text']=(df_cleaned['clean_text'].str.replace(r"\s+'s","'s",regex=True))
+
+#df_cleaned['clean_text']=(df_cleaned['clean_text'].str.replace(r"\s+'s","'s",regex=True))
+
 # load brand keywrod
 brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
@@ -18,45 +18,47 @@ brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to
 analyzer = SentimentIntensityAnalyzer()
 
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
-                          window_size: int = 3, merge_overlap: bool = True):
-
+                          window_size: int = 6, merge_overlap: bool = True):
 
     indices = []
-    for i, text in enumerate(df["clean_text"].dropna()):
-        if any(alias in text for alias in brand_keyword_map.get(brand, [])):
-            start = max(0, i - window_size)
-            end = min(len(df), i + window_size + 1)
-            indices.append((start, end))
-
-
+    for row in df.itertuples(index=False):
+        text=row.clean_text.lower()
+        if re.search(rf"\b{re.escape(brand)}\b",text):
+            start = max(1, row.row_id - window_size)
+            end = row.row_id + window_size 
+            subset = df[
+                (df["group_id"] == row.group_id) &
+                (df["row_id"].between(start,end))]
+            indices.append((row.group_id,start, end))
     if not indices:
         return []
 
-
     # combine overlap window
-    if merge_overlap:
-        merged = []
-        current_start, current_end = indices[0]
-        for s, e in indices[1:]:
-            if s <= current_end:  # if there is overlap
+    merged = []
+    for gid in set(i[0] for i in indices):
+        group_indices = [(s, e) for g, s, e in indices if g == gid]
+        group_indices.sort()
+
+        current_start, current_end = group_indices[0]
+        for s, e in group_indices[1:]:
+            if s <= current_end:
                 current_end = max(current_end, e)
             else:
-                merged.append((current_start, current_end))
+                merged.append((gid, current_start, current_end))
                 current_start, current_end = s, e
-        merged.append((current_start, current_end))
-        indices = merged
+        merged.append((gid, current_start, current_end))
 
 
     # collect corpus
     contexts = []
-    for s, e in indices:
-        subset = df.iloc[s:e]
+    for gid, s, e in merged:
+        subset = df[(df["group_id"] == gid) & (df["row_id"].between(s, e))]
         contexts.append({
+            "group_id":gid,
             "start_idx": s,
             "end_idx": e,
             "context": subset["clean_text"].tolist()
         })
-
 
     return contexts
 
@@ -70,14 +72,35 @@ def compare_keyword_frequency(
     window_size: int =6,
     merge_overlap:bool=True
 ):
-    df = df_cleaned.copy()
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
-
+    
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
     keywords = brand_keyword_dict[brand_name]
 
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, year, month, quarter,
+        row_number() over (PARTITION BY group_id ORDER BY datetime) AS row_id,
+        clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"error": "No available data"}
+    
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
+    # ---- 5. filter by each time ----
     def filter_df(df: pd.DataFrame, time: int):
         if granularity == "year":
             return df[df["year"] == time]
@@ -89,12 +112,9 @@ def compare_keyword_frequency(
             return df[(df["year"] == y) & (df["quarter"] == q)]
 
 
-
     def count_keywords(df_subset):
-        #texts = df_subset["clean_text"].dropna().tolist()
         contexts = extract_brand_context(
-            df_subset,
-            brand=brand_name,
+            df_subset, brand=brand_name,
             brand_keyword_map=brand_keyword_dict,
             window_size=window_size,
             merge_overlap=merge_overlap
@@ -105,15 +125,13 @@ def compare_keyword_frequency(
         context_texts = []
         for c in contexts:
             context_texts.extend(t for t in c["context"] if isinstance(t,str))
-        #counter = Counter()
+        
+        # -- count frequency ---
         freq_counter = Counter()
-
         for text in context_texts:
-            words = re.findall(r"\w+",text.lower())
-            if not isinstance(text, str):
-                return {}
+            t = text.lower()
             for kw in keywords:
-                if kw.lower() in words:
+                if re.search(rf"\b{re.escape(kw.lower())}\b", t):
                     freq_counter[kw] += 1
         if not freq_counter:
             all_words = " ".join(context_texts).split()
@@ -121,7 +139,6 @@ def compare_keyword_frequency(
             counter = Counter(filtered_words)
             top_fallback = [{"keyword":w, "count":c} for w, c in counter.most_common(5)]
             return top_fallback
-        #convert to list
         #return dict(counter)
         return [{"keyword":k,"count":v} for k,v in freq_counter.items()]
 
@@ -160,7 +177,6 @@ def custom_rules(text, base_score):
     else:
         sentiment = "neutral"
 
-
     return {"compound": compound, "sentiment": sentiment, "rule":applied}
 
 def explain_sentiment(text, top_n=5):
@@ -191,12 +207,28 @@ def keyword_frequency(
     time2:int,
     group_id: Optional[List[str]]=Query(None),
 ):
-    df = df_cleaned.copy()
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
-    #keywords = brand_keyword_dict[brand_name]
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text, year, month, quarter
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"brand": brand_name, "total_mentions": 0, "sentiment_percent": [], "sentiment_count": [], "examples": []}
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
 
 
     # 4. compute sentiment analysis
@@ -222,7 +254,6 @@ def keyword_frequency(
                 "top_negative_words": explanation["negatives"]
             })
         return sentiment_result,detailed_examples
-
 
     def filter_df(df: pd.DataFrame, time: int, granularity: str):
         if granularity == "year":
@@ -268,7 +299,6 @@ def keyword_frequency(
     
     empty_block = {"total_mentions": 0, "sentiment_percent": [], "sentiment_count": [], "examples": []}
 
-
     # two result block
     block1 = (
         empty_block
@@ -281,7 +311,6 @@ def keyword_frequency(
         }
     )
 
-
     block2 = (
         empty_block
         if total_mentions2 == 0
@@ -292,8 +321,6 @@ def keyword_frequency(
             "examples": detailed_examples2[:5],
         }
     )
-
-
     
     return {
         "brand": brand_name,
@@ -303,7 +330,6 @@ def keyword_frequency(
             str(time2): block2,
         },
     }
-
 
 
 def _normalize_quotes(s: str) -> str:
@@ -322,12 +348,10 @@ def _normalize_quotes(s: str) -> str:
 def _build_keyword_pattern(kw: str) -> re.Pattern:
     k = _normalize_quotes(kw)
     k = re.escape(k)
-    
     k = k.replace(r"\-", r"(?:-|\\s)")
-    
     k = k.replace(r"\ ", r"\s+")
-    return re.compile(rf"(?<!\w){k}(?!\w)", flags=re.IGNORECASE)
-
+    pattern = rf"(?<![A-Za-z0-9]){k}(?![A-Za-z0-9])"
+    return re.compile(pattern, flags=re.IGNORECASE)
 
 def count_kw(context_texts, keywords):
     patterns = {kw: _build_keyword_pattern(kw) for kw in keywords}
@@ -338,7 +362,6 @@ def count_kw(context_texts, keywords):
             if patt.search(t):
                 cnt[kw] += 1
     return cnt
-
 
 #------share of voice--------
 @router.get("/category/time-compare/share-of-voice")
@@ -351,19 +374,36 @@ def category_share_of_voice_compare(
 ):
     #find the category
     df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
-    brand_category_map = {
-    str(row["brand"]).strip().lower(): str(row["category"]).strip()
-    for _, row in df_cat.iterrows()
-    }
+    brand_category_map = defaultdict(list)
+    for _,row in df_cat.iterrows():
+        brand = str(row["brand"]).strip().lower()
+        category = str(row["category"]).strip()
+        brand_category_map[brand].append(category)
 
-    brand_in_category = [b for b, c in brand_category_map.items() if c == category_name]
+    brand_in_category = [b for b, cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:
         return {"error": f"category '{category_name}' not found"}
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text, year, month, quarter
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
 
-    df = df_cleaned.copy()
+    # ---- 3. Filter by group_id ----
     if group_id:
-        df = df[df["group_id"].isin(group_id)]
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
 
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"error":"No data available"}
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
+    
 
     def filter_df(df: pd.DataFrame, time: int):
         if granularity == "year":
@@ -391,12 +431,9 @@ def category_share_of_voice_compare(
         ]
         return {"total_mentions": total, "share_of_voice": share_list}
 
-
-
     #analyze two time periods
     df1 = filter_df(df, time1)
     df2 = filter_df(df, time2)
-
 
     result = {
         "category": category_name,

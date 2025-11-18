@@ -8,19 +8,19 @@ from keybert import KeyBERT
 from backend.model_loader import kw_model,encoder
 from sentence_transformers import SentenceTransformer, util 
 import spacy
-from backend.data_loader import load_chat_data
+from backend.data_loader import query_chat, load_default_groups
 
 router = APIRouter()
-#df_cleaned = pd.read_csv("data/processing_output/clean_chat_df/2025/cleaned_chat_dataframe.csv",dtype={"group_id":str})
-df_cleaned = load_chat_data()
-df_cleaned['clean_text']=(df_cleaned['clean_text'].str.replace(r"\s+'s","'s",regex=True))
-df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
-brand_category_map = {
-    str(row["brand"]).strip().lower(): str(row["category"]).strip()
-    for _, row in df_cat.iterrows()
-}
-brand_list = list(brand_category_map.keys())
 
+df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
+brand_category_map = defaultdict(list)
+for _,row in df_cat.iterrows():
+    brand = str(row["brand"]).strip().lower()
+    category = str(row["category"]).strip()
+    brand_category_map[brand].append(category)
+
+brand_list = list(brand_category_map.keys())
+brand_keyword_dict = (df_cat.groupby("brand")["keyword"].apply(list).to_dict())
 
 def _normalize_quotes(s: str) -> str:
     if not isinstance(s, str):
@@ -55,30 +55,69 @@ def count_kw(context_texts, keywords):
                 cnt[kw] += 1
     return cnt
 
-
 # ---------------- share of voice API ----------------
 @router.get("/category/share-of-voice")
-def get_share_of_voice(group_id:Optional[List[str]]=Query(None)):
-    df = df_cleaned.copy()
-    if group_id:
-        df = df[df["group_id"].isin(group_id)]
+def get_share_of_voice(
+    group_id:Optional[List[str]]=Query(None),
+     year: Optional[int] =None,
+    month: Optional[List[int]] = Query(None),
+    quarter: Optional[int] = None
+    ):
+    
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
 
-    # 1. count brand frequency
+    # ---- 3. Filter by group_id ----
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- Filter by date ----
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"error":"No data available"}
+
+    # 5. count brand frequency
     counts = count_kw(df["clean_text"].dropna(), brand_list)
 
-
-    # 2.map to category
+    # 6.map to category
     category_counts = defaultdict(dict)
     for brand, count in counts.items():
-        category = brand_category_map.get(brand)
-        if category:
+        categories = brand_category_map.get(brand, [])
+        for category in categories:
             category_counts[category][brand] = count
 
 
-    
     result = {}
     for category, brand_counts in category_counts.items():
         total = sum(brand_counts.values())
+        if total ==0:
+            result[category]= {
+                "total_mentions":0,
+                "share_of_voice":[],
+                "original_count":[]
+            }
+            continue
         result[category] = {
             "total_mentions": total,
             "share_of_voice": [
@@ -90,14 +129,11 @@ def get_share_of_voice(group_id:Optional[List[str]]=Query(None)):
             ]
         }
 
-
     return result
 
 #-------consumer perception----------
 
 nlp = spacy.load("en_core_web_sm")
-#semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
-#kw_model = KeyBERT(model='all-MiniLM-L6-v2')
 
 def _overlap_fraction(a, b):
     """calculate the overlap percentage between two phrases token"""
@@ -167,41 +203,61 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
     results = [{"word": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[1], reverse=True)]
     return results
 
-
-category_brand_map=defaultdict(list)
-for brand, cat in brand_category_map.items():
-    category_brand_map[cat].append(brand)
-
-#-----------------------------------------
-
-brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
 @router.get("/category/consumer-perception")
 def category_consumer_perception(category_name:str, 
                                  top_k:int=20, 
-                                 group_id:Optional[List[str]]=Query(None)):
+                                 group_id:Optional[List[str]]=Query(None),
+                                 year: Optional[int] =None,
+                                month: Optional[List[int]] = Query(None),
+                                quarter: Optional[int] = None):
     brand_in_category = [b for b,c in brand_category_map.items() if c==category_name]
     if not brand_in_category:
         return {"error":f"category '{category_name}' not found"}
     
-    df = df_cleaned
+    # --- 2. basic query
+    query = """
+    SELECT 
+        group_id, clean_text 
+    FROM chat WHERE clean_text IS NOT NULL"""
+    params = []
+    # ---- Default groups ----
+    if not group_id:
+        group_id = load_default_groups()
+
+    # ---- 3. Filter by group_id ----
     if group_id:
-        df = df[df["group_id"].isin(group_id)]
-    df = df_cleaned.copy()
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    # ---- Filter by date ----
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    # ---- 4. Query DuckDB ----
+    df = query_chat(query, params)
+    if df.empty:
+        return {"category":category_name,"associate_word":[]}
+    
     #  extract brand name relevant text
     pattern = "|".join([rf"\b{re.escape(b)}\b" for b in brand_in_category])
     relevant_texts = (
         df["clean_text"]
-        .dropna()
         .astype(str)
         .loc[lambda s: s.str.contains(pattern, case=False, na=False)]
         .tolist()
     )
 
     if not relevant_texts:
-        return {
-            "category": category_name,
-            "associated_words": []
-        }
+        return {"category": category_name,"associated_words": []}
 
     # Step 4️⃣ extract keyword
     associated_words = extract_clean_brand_keywords_auto(
@@ -215,3 +271,121 @@ def category_consumer_perception(category_name:str,
         "category": category_name,
         "associated_words": associated_words
     }
+
+# --- keyword frequency ---
+
+# ---------- Helper: Extract context ----------
+def extract_category_context(df, brand_list, window_size=6, merge_overlap=True):
+    indices = []
+    for i, text in enumerate(df["clean_text"].dropna()):
+        t = text.lower()
+        if any(re.search(rf"\b{re.escape(b)}\b", t) for b in brand_list):
+            start = max(0, i - window_size)
+            end = min(len(df), i + window_size + 1)
+            indices.append((start, end))
+    if not indices:
+        return []
+
+    # Merge overlapping windows
+    if merge_overlap:
+        merged = []
+        current_start, current_end = indices[0]
+        for s, e in indices[1:]:
+            if s <= current_end:
+                current_end = max(current_end, e)
+            else:
+                merged.append((current_start, current_end))
+                current_start, current_end = s, e
+        merged.append((current_start, current_end))
+        indices = merged
+
+
+    # Collect context
+    contexts = []
+    for s, e in indices:
+        subset = df.iloc[s:e]
+        contexts.append(subset["clean_text"].tolist())
+    return [t for ctx in contexts for t in ctx]
+
+# ---------- Main API ----------
+@router.get("/category/keyword-frequency")
+def category_keyword_frequency(
+    category_name: str,
+    group_id: Optional[List[str]] = Query(None),
+    year: Optional[int] = None,
+    month: Optional[List[int]] = Query(None),
+    quarter: Optional[int] = None,
+    window_size: int = 6,
+    merge_overlap: bool = True,
+):
+    # ---- 1. Identify brands in the category ----
+    brand_in_category = [b for b, c in brand_category_map.items() if c == category_name]
+    if not brand_in_category:
+        return {"error": f"Category '{category_name}' not found or has no brands."}
+
+    # ---- 2. Merge all keywords for those brands ----
+    category_keywords = []
+    for b in brand_in_category:
+        category_keywords.extend(brand_keyword_dict.get(b, []))
+    category_keywords = list(set(category_keywords))
+
+    # ---- 3. Query chat data ----
+    query = "SELECT clean_text FROM chat WHERE clean_text IS NOT NULL"
+    params = []
+
+    if not group_id:
+        group_id = load_default_groups()
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    if year:
+        query += " AND year = ?"
+        params.append(year)
+    if month:
+        query += " AND month IN (" + ",".join(["?"] * len(month)) + ")"
+        params.extend(month)
+    if quarter:
+        query += " AND quarter = ?"
+        params.append(quarter)
+
+    df = query_chat(query, params)
+    if df.empty:
+        return {"category": category_name, "keywords": []}
+
+    # ---- 4. Extract relevant text context ----
+    context_texts = extract_category_context(df, brand_in_category,
+                                             window_size=window_size,
+                                             merge_overlap=merge_overlap)
+    if not context_texts:
+        return {"category": category_name, "keywords": []}
+
+    # ---- 5. Count keyword frequency ----
+    freq_counter = Counter()
+    for text in context_texts:
+        words = re.findall(r"\w+", text.lower())
+        for kw in category_keywords:
+            if kw.lower() in words:
+                freq_counter[kw] += 1
+
+    # ---- 6. Fallback if no keywords ----
+    if not freq_counter:
+        all_words = " ".join(context_texts).split()
+        filtered_words = [w for w in all_words if w.isalpha() and len(w) > 2]
+        counter = Counter(filtered_words)
+        top_fallback = [{"keyword": w, "count": c} for w, c in counter.most_common(5)]
+        return {"category": category_name, "keywords": top_fallback}
+
+
+    result = [{"keyword": kw, "count": freq} for kw, freq in freq_counter.items()]
+    result.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "category": category_name,
+        "total_mentions": len(context_texts),
+        "keywords": result,
+    }
+
+
+
+
