@@ -1,0 +1,161 @@
+@layer components {
+  /* Main Dashboard Title */
+  .main-title {
+    @apply font-mainTitle text-white text-2xl font-bold
+           bg-cardBg py-4 px-6 rounded-xl shadow-card text-left
+           border border-borderPrimary flex items-center gap-3;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-cardBg border border-borderPrimary rounded-xl p-6
+           shadow-card transition-shadow hover:shadow-card-hover;
+  }
+
+  .card-header {
+    @apply text-white font-semibold text-lg mb-4 pb-3
+           border-b border-borderPrimary;
+  }
+
+  .card-body {
+    @apply text-textSecondary;
+  }
+
+  /* Sidebar Styles */
+  .sidebar {
+    @apply bg-bgSidebar border-r border-borderPrimary p-6
+           min-h-screen w-80 flex flex-col gap-6;
+  }
+
+  .sidebar-title {
+    @apply text-white text-xl font-bold mb-4;
+  }
+
+  .sidebar-section {
+    @apply flex flex-col gap-4;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply w-full bg-buttonPrimary text-white
+           rounded-lg py-2.5 px-4 font-medium transition-all
+           hover:bg-buttonHover hover:shadow-lg
+           active:scale-[0.98] cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply w-full bg-bgSecondary text-white border border-borderPrimary
+           rounded-lg py-2.5 px-4 font-medium transition-all
+           hover:bg-cardBg hover:border-borderLight
+           active:scale-[0.98] cursor-pointer;
+  }
+
+  /* Tabs */
+  .tab-container {
+    @apply flex gap-3 mb-6 flex-wrap;
+  }
+
+  .tab {
+    @apply bg-tabInactive text-textSecondary px-6 py-3 rounded-lg
+           font-medium transition-all cursor-pointer
+           hover:bg-borderLight flex items-center gap-2;
+  }
+
+  .tab.active {
+    @apply bg-tabActive text-white;
+  }
+
+  /* Form Elements */
+  .input-group {
+    @apply flex flex-col gap-2 mb-4;
+  }
+
+  .input-label {
+    @apply text-textSecondary text-sm font-medium;
+  }
+
+  .input-field {
+    @apply w-full bg-bgSecondary border border-borderPrimary
+           rounded-lg py-2.5 px-4 text-white
+           focus:outline-none focus:border-borderAccent focus:ring-1 focus:ring-borderAccent
+           transition-colors placeholder:text-textMuted;
+  }
+
+  .select-field {
+    @apply w-full bg-bgSecondary border border-borderPrimary
+           rounded-lg py-2.5 px-4 text-white
+           focus:outline-none focus:border-borderAccent focus:ring-1 focus:ring-borderAccent
+           transition-colors cursor-pointer;
+  }
+
+  /* Range Slider */
+  .range-slider {
+    @apply w-full h-2 bg-borderPrimary rounded-lg appearance-none cursor-pointer
+           accent-primary;
+  }
+
+  /* Dropdown */
+  .dropdown {
+    @apply relative;
+  }
+
+  .dropdown-button {
+    @apply w-full bg-bgSecondary border border-borderPrimary
+           rounded-lg py-2.5 px-4 text-left text-white
+           flex items-center justify-between
+           hover:border-borderLight transition-colors cursor-pointer;
+  }
+
+  /* Error/Alert Boxes */
+  .alert-error {
+    @apply bg-error border border-errorBorder
+           rounded-lg p-4 text-textMain text-sm;
+  }
+
+  .alert-success {
+    @apply bg-success border border-green-700
+           rounded-lg p-4 text-textMain text-sm;
+  }
+
+  .alert-warning {
+    @apply bg-warning border border-yellow-700
+           rounded-lg p-4 text-textMain text-sm;
+  }
+
+  /* Upload Section */
+  .upload-area {
+    @apply bg-bgSecondary border-2 border-dashed border-borderPrimary
+           rounded-lg p-8 text-center text-textSecondary
+           hover:border-borderAccent hover:bg-cardBg
+           transition-all cursor-pointer;
+  }
+
+  /* Keyword Chips */
+  .keyword-chip {
+    @apply inline-flex items-center gap-2 bg-bgSecondary border border-borderPrimary
+           rounded-full px-4 py-2 text-white text-sm font-medium mr-2 mb-2
+           hover:border-borderAccent transition-colors;
+  }
+
+  /* Section Headers */
+  .section-header {
+    @apply text-white text-lg font-semibold mb-4;
+  }
+}
+
+/* Tab Navigation - Plain CSS outside layer */
+.tab-link {
+  background-color: #3d4456;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+
+.tab-link:hover {
+  background-color: #4b5468;
+  color: white;
+}
+
+.tab-active {
+  background-color: #B87FB8 !important;
+  color: white !important;
+}

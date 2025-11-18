@@ -14,8 +14,3 @@ sentence-transformers
 keybert
 duckdb
 
-# Frontend deps
-streamlit
-matplotlib
-altair
-requests

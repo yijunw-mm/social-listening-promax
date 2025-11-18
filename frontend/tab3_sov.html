@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Brand Comparison | Social Listening Dashboard</title>
+
+    <link href="dist/output.css" rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- Load Shared Layout -->
+    <div id="layout"></div>
+
+    <script src="src/js/layout-loader.js"></script>
+    <script>
+        async function loadPage() {
+            // Load layout
+            await loadLayout('sov');
+
+            // Insert this page's content
+            document.getElementById("page-content").innerHTML = `
+                <h2 class="text-white text-2xl font-semibold mb-6">Brand Comparison</h2>
+
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg">
+                    <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
+                        Share of Voice Analysis
+                    </div>
+                    <div class="text-gray-400">
+                        Compare brand performance and share of voice metrics.
+                    </div>
+                </div>
+            `;
+        }
+
+        loadPage();
+    </script>
+
+    <script src="src/js/api/api.js"></script>
+    <script src="src/js/pages/share.js"></script>
+
+</body>
+
+</html>

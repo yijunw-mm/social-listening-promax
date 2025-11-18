@@ -1,6 +1,0 @@
-[theme]
-primaryColor = "#C990B8"            # Viola (main accent: tabs, buttons, highlights)
-backgroundColor = "#13192A"         # Mirage (dark main background)
-secondaryBackgroundColor = "#1B2236" # Slightly lighter navy for sidebar/cards
-textColor = "#FFFFFF"               # White text
-font = "sans serif"

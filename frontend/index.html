@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Brand | Social Listening Dashboard</title>
+
+    <link href="dist/output.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+
+<body>
+
+    <!-- Load Shared Layout -->
+    <div id="layout"></div>
+
+    <script src="./src/js/layout-loader.js"></script>
+
+    <script type="module" src="./src/js/pages/brand.js"></script>
+
+    <script type="module">
+       import { loadBrandData } from './src/js/pages/brand.js';
+
+        async function loadPage() {
+            // Wait for Chart.js to be available
+            while (typeof Chart === 'undefined') {
+                console.log('Waiting for Chart.js to load...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            console.log('Chart.js is loaded and ready');
+
+            await loadLayout('brand');
+
+            document.getElementById("page-content").innerHTML = `
+                <h2 class="text-white text-2xl font-semibold mb-6">Brand Analysis</h2>
+
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg">
+                    <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
+                        Brand Analysis
+                    </div>
+                    <div class="text-gray-400 mb-6">
+                        Select a brand and configure your analysis parameters to begin.
+                    </div>
+
+                    <div class="mb-6">
+                       <label class="text-gray-300 mr-2">Select Brand:</label>
+                        <select id="brandSelector" class="bg-[#1f252f] text-white p-2 rounded">
+
+                            <!-- 🍼 Diaper Brands -->
+                            <optgroup label="Diaper Brands">
+                                <option value="mamypoko">MamyPoko</option>
+                                <option value="huggies">Huggies</option>
+                                <option value="pampers">Pampers</option>
+                                <option value="drypers">Drypers</option>
+                                <option value="merries">Merries</option>
+                                <option value="offspring">Offspring</option>
+                                <option value="rascal & friends">Rascal & Friends</option>
+                            </optgroup>
+
+                            <!-- 🍼 Formula Milk Brands -->
+                            <optgroup label="Formula Milk">
+                                <option value="nan">Nan</option>
+                                <option value="lactogen">Lactogen</option>
+                                <option value="friso">Friso</option>
+                                <option value="enfamil">Enfamil</option>
+                                <option value="aptamil">Aptamil</option>
+                                <option value="s26">S-26</option>
+                                <option value="dumex dugro">Dumex Dugro</option>
+                            </optgroup>
+
+                            <!-- 🍼 Baby Food & Organic Brands -->
+                            <optgroup label="Baby Food">
+                                <option value="applecrumbly">Applecrumble</option>
+                                <option value="little blossom">Little Blossom</option>
+                                <option value="rafferty garden">Rafferty's Garden</option>
+                                <option value="happy baby organics">Happy Baby Organics</option>
+                                <option value="heinz baby">Heinz Baby</option>
+                                <option value="only organic">Only Organic</option>
+                                <option value="holle">Holle</option>
+                                <option value="ella kitchen">Ella's Kitchen</option>
+                                <option value="gerber">Gerber</option>
+                            </optgroup>
+
+                            <!-- 🏥 Hospitals & Healthcare -->
+                            <optgroup label="Hospitals & Healthcare">
+                                <option value="mount alvernia">Mount Alvernia Hospital</option>
+                                <option value="thomson medical centre">Thomson Medical Centre</option>
+                                <option value="mount elizabeth">Mount Elizabeth Hospital</option>
+                                <option value="gleneagles">Gleneagles Hospital</option>
+                                <option value="raffles hospital">Raffles Hospital</option>
+                                <option value="national university hospital">National University Hospital</option>
+                                <option value="kkh">KK Women & Children's Hospital</option>
+                                <option value="parkway east hospital">Parkway East Hospital</option>
+                                <option value="singapore general hospital">Singapore General Hospital</option>
+                                <option value="sengkang general hospital">Sengkang General Hospital</option>
+                                <option value="changi general hospital">Changi General Hospital</option>
+                            </optgroup>
+
+                            <!-- 🧴 Baby Care Products -->
+                            <optgroup label="Baby Care & Hygiene">
+                                <option value="johnson">Johnson’s Baby</option>
+                                <option value="homie">Homie</option>
+                                <option value="hey tiger">Hey Tiger</option>
+                                <option value="nino nana">Nino Nana</option>
+                            </optgroup>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="grid grid-cols-1 gap-6 mt-6" id="chartsContainer">
+
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-2">Top Keywords</h3>
+                            <canvas id="keywordChart"></canvas>
+                            <!-- Loading Overlay for Keywords Chart -->
+                            <div id="loadingOverlay-keywordChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-2">Sentiment</h3>
+                            <div class="flex justify-center">
+                                <canvas id="sentimentChart" class="max-w-[320px] max-h-[320px]"></canvas>
+                            </div>
+                            <!-- Loading Overlay for Sentiment Chart -->
+                            <div id="loadingOverlay-sentimentChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-2">Consumer Perception</h3>
+                            <canvas id="perceptionChart"></canvas>
+                            <!-- Loading Overlay for Perception Chart -->
+                            <div id="loadingOverlay-perceptionChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+
+                        .chart-loading-overlay {
+                            display: none;
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            background: rgba(31, 37, 47, 0.95);
+                            z-index: 10;
+                            border-radius: 8px;
+                            align-items: center;
+                            justify-content: center;
+                            flex-direction: column;
+                        }
+
+                        .chart-loading-overlay.active {
+                            display: flex;
+                        }
+
+                        .loading-spinner {
+                            border: 3px solid #3d4456;
+                            border-top: 3px solid #4ab4deff;
+                            border-radius: 50%;
+                            width: 40px;
+                            height: 40px;
+                            animation: spin 1s linear infinite;
+                        }
+                    </style>
+                </div>
+            `;
+
+            // Wait for canvases to be rendered with actual dimensions
+            await waitForCanvasesReady();
+
+            // Add event listener to brand selector
+            const brandSelector = document.getElementById("brandSelector");
+
+            if (brandSelector) {
+                brandSelector.addEventListener('change', async function() {
+                    console.log('Brand changed to:', this.value);
+                    await loadBrandData(this.value);
+                });
+            }
+
+            // Now that canvas elements are painted and visible, load the chart data
+            console.log('Loading brand data...');
+            await loadBrandData();
+        }
+
+        // Helper function to ensure canvases are ready
+        async function waitForCanvasesReady() {
+            const canvasIds = ['keywordChart', 'sentimentChart', 'perceptionChart'];
+            const maxWait = 5000; // 5 second timeout
+            const startTime = Date.now();
+
+            while (Date.now() - startTime < maxWait) {
+                const allReady = canvasIds.every(id => {
+                    const canvas = document.getElementById(id);
+                    if (!canvas) return false;
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    const style = window.getComputedStyle(canvas);
+                    
+                    return (
+                        canvas.offsetWidth > 0 &&
+                        canvas.offsetHeight > 0 &&
+                        rect.width > 0 &&
+                        rect.height > 0 &&
+                        style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        style.opacity !== '0'
+                    );
+                });
+
+                if (allReady) {
+                    console.log('All canvases are ready with dimensions');
+                    return true;
+                }
+
+                // Wait for next frame
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+
+            console.warn('Timeout waiting for canvases to be ready');
+            return false;
+        }
+
+        // Ensure DOM is ready before running
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPage);
+        } else {
+            loadPage();
+        }
+    </script>
+
+</body>
+</html>

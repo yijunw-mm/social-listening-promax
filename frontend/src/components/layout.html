@@ -1,0 +1,85 @@
+<div class="flex min-h-screen bg-[#1e2433] text-white">
+
+    <!-- Sidebar -->
+    <aside class="w-80 bg-[#252d3d] border-r border-[#3d4456] p-6 flex flex-col gap-6">
+
+        <h2 class="text-white text-xl font-bold mb-4">Social Listening</h2>
+
+        <div class="flex flex-col gap-6">
+
+            <!-- Select Years -->
+            <div>
+                <h3 class="text-gray-400 text-sm font-medium mb-2">Select Years To Analyze</h3>
+                <!-- Placeholder -->
+                <div class="text-gray-500 text-xs">Year selector here</div>
+            </div>
+
+            <!-- Select Data Files -->
+            <div>
+                <h3 class="text-gray-400 text-sm font-medium mb-2">Select Data Files</h3>
+
+                <!-- Upload Button -->
+                <button
+                    class="w-full bg-purple-400 hover:bg-purple-500 text-white rounded-lg px-4 py-2 font-medium transition">
+                    📁 Upload Data
+                </button>
+
+                <!-- Dropzone -->
+                <div
+                    class="bg-[#232938] border-2 border-dashed border-[#3d4456] rounded-lg p-8 text-center text-gray-400 mt-3 cursor-pointer">
+                    Drag and drop file here
+                </div>
+
+                <p class="text-gray-500 text-xs mt-2">Upload a zip or txt file</p>
+            </div>
+
+        </div>
+
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="flex-1 flex flex-col">
+
+        <!-- Header -->
+        <header class="bg-[#2a3142] px-12 py-6 border-b border-[#3d4456]">
+            <h1 class="text-2xl font-bold flex items-center gap-2 text-white">
+                📊 Data Visualization Dashboard
+            </h1>
+        </header>
+
+        <!-- Tabs -->
+        <nav class="bg-[#2a3142] px-12 py-4 border-b border-[#3d4456] flex flex-wrap gap-3">
+
+            <a href="index.html" data-page="brand"
+                class="tab-link px-6 py-3 rounded-lg font-medium flex items-center gap-2">
+                📊 Brand
+            </a>
+
+            <a href="tab2_time.html" data-page="time"
+                class="tab-link px-6 py-3 rounded-lg font-medium flex items-center gap-2">
+                ⏱ Time Comparison
+            </a>
+
+            <a href="tab3_sov.html" data-page="sov"
+                class="tab-link px-6 py-3 rounded-lg font-medium flex items-center gap-2">
+                📈 Brand Comparison
+            </a>
+
+            <a href="tab4_general.html" data-page="general"
+                class="tab-link px-6 py-3 rounded-lg font-medium flex items-center gap-2">
+                📋 General
+            </a>
+
+            <a href="tab5_cp.html" data-page="cp"
+                class="tab-link px-6 py-3 rounded-lg font-medium flex items-center gap-2">
+                💭 Consumer Perception
+            </a>
+
+        </nav>
+
+        <!-- Dynamic Page Content -->
+        <main id="page-content" class="flex-1 overflow-y-auto p-12"></main>
+
+    </div>
+
+</div>

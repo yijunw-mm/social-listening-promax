@@ -1,0 +1,22 @@
+@import './global.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Tab Styles */
+.tab-link {
+  background-color: #3d4456;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+
+.tab-link:hover {
+  background-color: #4b5468;
+  color: white;
+}
+
+.tab-active {
+  background-color: #B87FB8 !important;
+  color: white !important;
+}
