@@ -217,21 +217,23 @@ async function get_time_compare_sentiment(params = {}) {
 
 //time compare share of voice
 async function get_time_compare_share_of_voice(params = {}) {
-    const url = new URL(`${BASE_URL}/brand/time-compare/share-of-voice`);
-    
+    const url = new URL(`${BASE_URL}/category/time-compare/share-of-voice`);
+
     Object.keys(params).forEach(key => {
         url.searchParams.append(key, params[key]);
-    }); 
+    });
     const response = await fetch(url, {
         method: "GET",
         headers: { "Content-Type": "application/json" }
     });
-    
+
     if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
     return await response.json();
 }
+
+
 
 //brand comparison share of voice
 async function get_share_of_voice(params = {}) {

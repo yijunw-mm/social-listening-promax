@@ -6,6 +6,10 @@
     <title>Time Comparison | Social Listening Dashboard</title>
 
     <link href="dist/output.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 </head>
 
 <body>
@@ -13,12 +17,46 @@
     <!-- Load Shared Layout -->
     <div id="layout"></div>
 
-    <script src="src/js/layout-loader.js"></script>
-    <script>
-        async function loadPage() {
-            await loadLayout('time');
+    <script src="./src/js/layout-loader.js"></script>
 
-            // Insert this page's content
+    <script type="module" src="./src/js/pages/time.js"></script>
+
+    <script type="module">
+        import { loadKeywordComparisonData, loadSentimentComparisonData, loadShareOfVoiceComparisonData } from './src/js/pages/time.js';
+
+        async function loadPage() {
+            try {
+                // Wait for Chart.js to be available
+                let attempts = 0;
+                while (typeof Chart === 'undefined' && attempts < 50) {
+                    console.log('Waiting for Chart.js to load...');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js failed to load');
+                    document.body.innerHTML = '<div style="color: white; padding: 20px;">Error: Chart.js failed to load. Please refresh the page.</div>';
+                    return;
+                }
+
+                console.log('Chart.js is loaded and ready');
+
+                // Register ChartDataLabels if available
+                if (typeof ChartDataLabels !== 'undefined') {
+                    Chart.register(ChartDataLabels);
+                    console.log('ChartDataLabels plugin registered');
+                } else {
+                    console.error('ChartDataLabels not available');
+                }
+
+                await loadLayout('time');
+            } catch (error) {
+                console.error('Error in loadPage:', error);
+                document.body.innerHTML = '<div style="color: white; padding: 20px;">Error loading page: ' + error.message + '</div>';
+                return;
+            }
+
             document.getElementById("page-content").innerHTML = `
                 <h2 class="text-white text-2xl font-semibold mb-6">Time Comparison</h2>
 
@@ -26,19 +64,334 @@
                     <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                         Time Comparison Analysis
                     </div>
-                    <div class="text-gray-400">
-                        Compare trends and metrics across different time periods.
+                    <div class="text-gray-400 mb-6">
+                        Compare brand metrics across different time periods.
                     </div>
+
+                    <!-- Brand Selection -->
+                    <div class="mb-6">
+                        <label class="text-gray-300 mr-2">Select Brand:</label>
+                        <select id="brandSelector" class="bg-[#1f252f] text-white p-2 rounded">
+                            <!-- Diaper Brands -->
+                            <optgroup label="Diaper Brands">
+                                <option value="mamypoko">MamyPoko</option>
+                                <option value="huggies">Huggies</option>
+                                <option value="pampers">Pampers</option>
+                                <option value="drypers">Drypers</option>
+                                <option value="merries">Merries</option>
+                                <option value="offspring">Offspring</option>
+                                <option value="rascal & friends">Rascal & Friends</option>
+                            </optgroup>
+
+                            <!-- Formula Milk Brands -->
+                            <optgroup label="Formula Milk">
+                                <option value="nan">Nan</option>
+                                <option value="lactogen">Lactogen</option>
+                                <option value="friso">Friso</option>
+                                <option value="enfamil">Enfamil</option>
+                                <option value="aptamil">Aptamil</option>
+                                <option value="s26">S-26</option>
+                                <option value="dumex dugro">Dumex Dugro</option>
+                            </optgroup>
+
+                            <!-- Baby Food & Organic Brands -->
+                            <optgroup label="Baby Food">
+                                <option value="applecrumbly">Applecrumble</option>
+                                <option value="little blossom">Little Blossom</option>
+                                <option value="rafferty garden">Rafferty's Garden</option>
+                                <option value="happy baby organics">Happy Baby Organics</option>
+                                <option value="heinz baby">Heinz Baby</option>
+                                <option value="only organic">Only Organic</option>
+                                <option value="holle">Holle</option>
+                                <option value="ella kitchen">Ella's Kitchen</option>
+                                <option value="gerber">Gerber</option>
+                            </optgroup>
+
+                            <!-- Hospitals & Healthcare -->
+                            <optgroup label="Hospitals & Healthcare">
+                                <option value="mount alvernia">Mount Alvernia Hospital</option>
+                                <option value="thomson medical centre">Thomson Medical Centre</option>
+                                <option value="mount elizabeth">Mount Elizabeth Hospital</option>
+                                <option value="gleneagles">Gleneagles Hospital</option>
+                                <option value="raffles hospital">Raffles Hospital</option>
+                                <option value="national university hospital">National University Hospital</option>
+                                <option value="kkh">KK Women & Children's Hospital</option>
+                                <option value="parkway east hospital">Parkway East Hospital</option>
+                                <option value="singapore general hospital">Singapore General Hospital</option>
+                                <option value="sengkang general hospital">Sengkang General Hospital</option>
+                                <option value="changi general hospital">Changi General Hospital</option>
+                            </optgroup>
+
+                            <!-- Baby Care Products -->
+                            <optgroup label="Baby Care & Hygiene">
+                                <option value="johnson">Johnson's Baby</option>
+                                <option value="homie">Homie</option>
+                                <option value="hey tiger">Hey Tiger</option>
+                                <option value="nino nana">Nino Nana</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <!-- Charts Container -->
+                    <div class="grid grid-cols-1 gap-6 mt-6" id="chartsContainer">
+
+                        <!-- Keyword Comparison -->
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-4">Keyword Frequency Comparison</h3>
+
+                            <!-- Time Controls for Keyword Chart -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Granularity:</label>
+                                    <select id="keywordGranularitySelector" class="bg-[#2a3142] text-white p-2 rounded w-full">
+                                        <option value="year">Year</option>
+                                        <option value="month">Month</option>
+                                        <option value="quarter">Quarter</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                                    <input type="text" id="keywordTime1Input" placeholder="e.g., 2024 or 202401"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2024">
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                                    <input type="text" id="keywordTime2Input" placeholder="e.g., 2025 or 202501"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2025">
+                                </div>
+                            </div>
+
+                            <button id="keywordCompareBtn" class="bg-[#4ab4deff] hover:bg-[#3a9dcf] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                                Compare
+                            </button>
+
+                            <canvas id="keywordCompareChart"></canvas>
+                            <div id="loadingOverlay-keywordCompareChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                        <!-- Sentiment Comparison -->
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-4">Sentiment Comparison</h3>
+
+                            <!-- Time Controls for Sentiment Chart -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Granularity:</label>
+                                    <select id="sentimentGranularitySelector" class="bg-[#2a3142] text-white p-2 rounded w-full">
+                                        <option value="year">Year</option>
+                                        <option value="month">Month</option>
+                                        <option value="quarter">Quarter</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                                    <input type="text" id="sentimentTime1Input" placeholder="e.g., 2024 or 202401"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2024">
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                                    <input type="text" id="sentimentTime2Input" placeholder="e.g., 2025 or 202501"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2025">
+                                </div>
+                            </div>
+
+                            <button id="sentimentCompareBtn" class="bg-[#4ab4deff] hover:bg-[#3a9dcf] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                                Compare
+                            </button>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="flex flex-col items-center">
+                                    <h4 class="text-gray-300 text-sm mb-2" id="sentiment1Label">Time Period 1</h4>
+                                    <canvas id="sentiment1Chart" class="max-w-[280px] max-h-[280px]"></canvas>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <h4 class="text-gray-300 text-sm mb-2" id="sentiment2Label">Time Period 2</h4>
+                                    <canvas id="sentiment2Chart" class="max-w-[280px] max-h-[280px]"></canvas>
+                                </div>
+                            </div>
+                            <div id="loadingOverlay-sentimentCompareChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                        <!-- Share of Voice Comparison -->
+                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
+                            <h3 class="text-white mb-4">Share of Voice Comparison</h3>
+
+                            <!-- Time Controls for Share of Voice Chart -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Granularity:</label>
+                                    <select id="shareOfVoiceGranularitySelector" class="bg-[#2a3142] text-white p-2 rounded w-full">
+                                        <option value="year">Year</option>
+                                        <option value="month">Month</option>
+                                        <option value="quarter">Quarter</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                                    <input type="text" id="shareOfVoiceTime1Input" placeholder="e.g., 2024 or 202401"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2024">
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                                    <input type="text" id="shareOfVoiceTime2Input" placeholder="e.g., 2025 or 202501"
+                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2025">
+                                </div>
+                            </div>
+
+                            <button id="shareOfVoiceCompareBtn" class="bg-[#4ab4deff] hover:bg-[#3a9dcf] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                                Compare
+                            </button>
+
+                            <canvas id="shareOfVoiceCompareChart"></canvas>
+                            <div id="loadingOverlay-shareOfVoiceCompareChart" class="chart-loading-overlay">
+                                <div class="loading-spinner"></div>
+                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+
+                        .chart-loading-overlay {
+                            display: none;
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            background: rgba(31, 37, 47, 0.95);
+                            z-index: 10;
+                            border-radius: 8px;
+                            align-items: center;
+                            justify-content: center;
+                            flex-direction: column;
+                        }
+
+                        .chart-loading-overlay.active {
+                            display: flex;
+                        }
+
+                        .loading-spinner {
+                            border: 3px solid #3d4456;
+                            border-top: 3px solid #4ab4deff;
+                            border-radius: 50%;
+                            width: 40px;
+                            height: 40px;
+                            animation: spin 1s linear infinite;
+                        }
+                    </style>
                 </div>
             `;
+
+            // Wait for canvases to be rendered
+            await waitForCanvasesReady();
+
+            // Add event listeners for each chart's compare button
+            const keywordCompareBtn = document.getElementById("keywordCompareBtn");
+            if (keywordCompareBtn) {
+                keywordCompareBtn.addEventListener('click', async function() {
+                    const brand = document.getElementById("brandSelector").value;
+                    const granularity = document.getElementById("keywordGranularitySelector").value;
+                    const time1 = parseInt(document.getElementById("keywordTime1Input").value);
+                    const time2 = parseInt(document.getElementById("keywordTime2Input").value);
+
+                    console.log('Comparing Keyword:', { brand, granularity, time1, time2 });
+                    await loadKeywordComparisonData(brand, granularity, time1, time2);
+                });
+            }
+
+            const sentimentCompareBtn = document.getElementById("sentimentCompareBtn");
+            if (sentimentCompareBtn) {
+                sentimentCompareBtn.addEventListener('click', async function() {
+                    const brand = document.getElementById("brandSelector").value;
+                    const granularity = document.getElementById("sentimentGranularitySelector").value;
+                    const time1 = parseInt(document.getElementById("sentimentTime1Input").value);
+                    const time2 = parseInt(document.getElementById("sentimentTime2Input").value);
+
+                    console.log('Comparing Sentiment:', { brand, granularity, time1, time2 });
+                    await loadSentimentComparisonData(brand, granularity, time1, time2);
+                });
+            }
+
+            const shareOfVoiceCompareBtn = document.getElementById("shareOfVoiceCompareBtn");
+            if (shareOfVoiceCompareBtn) {
+                shareOfVoiceCompareBtn.addEventListener('click', async function() {
+                    const brand = document.getElementById("brandSelector").value;
+                    const granularity = document.getElementById("shareOfVoiceGranularitySelector").value;
+                    const time1 = parseInt(document.getElementById("shareOfVoiceTime1Input").value);
+                    const time2 = parseInt(document.getElementById("shareOfVoiceTime2Input").value);
+
+                    console.log('Comparing Share of Voice:', { brand, granularity, time1, time2 });
+                    await loadShareOfVoiceComparisonData(brand, granularity, time1, time2);
+                });
+            }
         }
 
-        loadPage();
+        // Helper function to ensure canvases are ready
+        async function waitForCanvasesReady() {
+            const canvasIds = ['keywordCompareChart', 'sentiment1Chart', 'sentiment2Chart', 'shareOfVoiceCompareChart'];
+            const maxWait = 5000;
+            const startTime = Date.now();
+
+            while (Date.now() - startTime < maxWait) {
+                const allReady = canvasIds.every(id => {
+                    const canvas = document.getElementById(id);
+                    if (!canvas) return false;
+
+                    const rect = canvas.getBoundingClientRect();
+                    const style = window.getComputedStyle(canvas);
+
+                    return (
+                        canvas.offsetWidth > 0 &&
+                        canvas.offsetHeight > 0 &&
+                        rect.width > 0 &&
+                        rect.height > 0 &&
+                        style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        style.opacity !== '0'
+                    );
+                });
+
+                if (allReady) {
+                    console.log('All canvases are ready');
+                    return true;
+                }
+
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+
+            console.warn('Timeout waiting for canvases');
+            return false;
+        }
+
+        // Ensure DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('DOM Content Loaded');
+                loadPage().catch(err => {
+                    console.error('Fatal error loading page:', err);
+                    document.body.innerHTML = '<div style="color: white; padding: 20px;">Fatal error: ' + err.message + '</div>';
+                });
+            });
+        } else {
+            console.log('DOM already ready, loading page');
+            loadPage().catch(err => {
+                console.error('Fatal error loading page:', err);
+                document.body.innerHTML = '<div style="color: white; padding: 20px;">Fatal error: ' + err.message + '</div>';
+            });
+        }
     </script>
 
-    <script src="src/js/api/api.js"></script>
-    <script src="src/js/pages/time.js"></script>
-
 </body>
-
 </html>

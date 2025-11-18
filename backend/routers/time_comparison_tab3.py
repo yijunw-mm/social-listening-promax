@@ -444,3 +444,71 @@ def category_share_of_voice_compare(
         }
     }
     return result
+
+#------consumer perception--------
+@router.get("/brand/time-compare/consumer-perception")
+def compare_consumer_perception(
+    brand_name: str,
+    granularity: Literal["year", "month", "quarter"],
+    time1: int,
+    time2: int,
+    group_id: Optional[List[str]] = Query(None),
+    top_k: int = 20,
+    window_size: int = 6,
+    merge_overlap: bool = True
+):
+    df = df_cleaned.copy()
+    if group_id:
+        df = df[df["group_id"].isin(group_id)]
+
+    if brand_name not in brand_keyword_dict:
+        return {"error": f"Brand '{brand_name}' not found."}
+
+    def filter_df(df: pd.DataFrame, time: int):
+        if granularity == "year":
+            return df[df["year"] == time]
+        elif granularity == "month":
+            y, m = divmod(time, 100)
+            return df[(df["year"] == y) & (df["month"] == m)]
+        elif granularity == "quarter":
+            y, q = divmod(time, 10)
+            return df[(df["year"] == y) & (df["quarter"] == q)]
+
+    def get_associated_words(df_subset):
+        contexts = extract_brand_context(
+            df_subset,
+            brand=brand_name,
+            brand_keyword_map=brand_keyword_dict,
+            window_size=window_size,
+            merge_overlap=merge_overlap
+        )
+
+        if not contexts:
+            return {"error": f"No mention about brand {brand_name}", "associated_words": []}
+
+        context_texts = []
+        for c in contexts:
+            context_texts.extend(t for t in c["context"] if isinstance(t, str))
+
+        # Extract words excluding brand keywords
+        all_words = []
+        brand_keywords_lower = [kw.lower() for kw in brand_keyword_dict[brand_name]]
+
+        for text in context_texts:
+            words = re.findall(r"\w+", text.lower())
+            filtered = [w for w in words if w not in brand_keywords_lower and len(w) > 2 and w.isalpha()]
+            all_words.extend(filtered)
+
+        word_counter = Counter(all_words)
+        top_words = [{"word": w, "count": c} for w, c in word_counter.most_common(top_k)]
+
+        return {"associated_words": top_words}
+
+    return {
+        "brand": brand_name,
+        "granularity": granularity,
+        "compare": {
+            str(time1): get_associated_words(filter_df(df, time1)),
+            str(time2): get_associated_words(filter_df(df, time2))
+        }
+    }
