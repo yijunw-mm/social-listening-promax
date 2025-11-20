@@ -89,12 +89,16 @@ async function loadComparisonKeywordFrequency(category) {
         }
 
         // Check if data is empty or invalid
-        if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-            showNoDataMessage(canvasId, 'No keyword frequency data available for this category');
-            return;
+        // If backend returns single-brand format (category + keywords), convert it to multi-brand format
+        let normalizedData;
+        if (data.keywords && Array.isArray(data.keywords)) {
+            normalizedData = { [category]: data.keywords };
+        } else {
+            normalizedData = data;
         }
 
-        renderComparisonKeywordFrequencyChart(canvasId, data, category);
+        renderComparisonKeywordFrequencyChart(canvasId, normalizedData, category);
+
     } catch (err) {
         console.error('Error loading comparison keyword frequency:', err);
         showNoDataMessage(canvasId, 'Error loading data');
@@ -216,13 +220,14 @@ function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
 
     // Extract all unique keywords across all brands
     const keywordSet = new Set();
-    Object.values(data).forEach(brandData => {
-        if (Array.isArray(brandData)) {
+    Object.entries(data).forEach(([brand, brandData]) => {
+    if (Array.isArray(brandData)) {
             brandData.forEach(item => {
                 if (item.keyword) keywordSet.add(item.keyword);
             });
         }
     });
+
 
     const keywords = Array.from(keywordSet);
     const brands = Object.keys(data);

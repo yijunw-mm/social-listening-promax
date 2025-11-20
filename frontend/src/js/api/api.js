@@ -235,7 +235,7 @@ async function get_category_keyword_frequency(params = {}) {
 
 //brand comparison keyword frequncy (brand-level data)
 async function get_comparison_keyword_frequency(params = {}) {
-    const url = buildURL('/category/keyword-frequency-by-brand', params);
+    const url = buildURL('/category/keyword-frequency', params);
 
     const response = await fetch(url, {
         method: "GET",
