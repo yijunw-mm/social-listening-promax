@@ -5,11 +5,9 @@ from collections import Counter, defaultdict
 import json
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from backend.data_loader import query_chat, load_default_groups
+from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
 router = APIRouter()
-
-#df_cleaned['clean_text']=(df_cleaned['clean_text'].str.replace(r"\s+'s","'s",regex=True))
 
 # load brand keywrod
 brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
@@ -69,6 +67,7 @@ def compare_keyword_frequency(
     time1: int,
     time2: int,
     group_id: Optional[List[str]] = Query(None),
+    group_year:Optional[int]=None,
     window_size: int =6,
     merge_overlap:bool=True
 ):
@@ -86,6 +85,8 @@ def compare_keyword_frequency(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -179,7 +180,7 @@ def custom_rules(text, base_score):
 
     return {"compound": compound, "sentiment": sentiment, "rule":applied}
 
-def explain_sentiment(text, top_n=5):
+def explain_sentiment(text, top_n=5,matched_rule=None):
     """return the contribution"""
     words = re.findall(r"\b\w+\b", text.lower())
     scored_words = []
@@ -187,6 +188,21 @@ def explain_sentiment(text, top_n=5):
         if w in analyzer.lexicon:  # there is a score in VADER dictionary
             score = analyzer.lexicon[w]
             scored_words.append((w, score))
+    if matched_rule:
+        for rule in CONFIG:
+            if rule["name"] == matched_rule:
+                for p in rule["patterns"]:
+                    match = re.search(p, text, re.IGNORECASE)
+                    if match:
+                        adj = rule["adjustment"]
+                        # check whether match one of them
+                        hit = match.group(1) if match.lastindex else match.group(0)
+                        # remove //b
+                        hit = re.sub(r"\\b", "", hit).strip()
+                        scored_words.append((hit, adj))
+                        break  
+                break
+
 
     positives = sorted([x for x in scored_words if x[1] > 0], key=lambda x: -x[1])[:top_n]
     negatives = sorted([x for x in scored_words if x[1] < 0], key=lambda x: x[1])[:top_n]
@@ -206,6 +222,7 @@ def keyword_frequency(
     time1:int,
     time2:int,
     group_id: Optional[List[str]]=Query(None),
+    group_year:Optional[int]=None
 ):
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
@@ -216,6 +233,8 @@ def keyword_frequency(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -229,7 +248,7 @@ def keyword_frequency(
     if df.empty:
         return {"brand": brand_name, "total_mentions": 0, "sentiment_percent": [], "sentiment_count": [], "examples": []}
     df["clean_text"] = df["clean_text"].fillna("").astype(str)
-
+    
 
     # 4. compute sentiment analysis
     def analyze_sentiment(texts):
@@ -244,7 +263,7 @@ def keyword_frequency(
             sentiment_result[adjusted["sentiment"]]+=1
             
             # 4.5 explain the contribution
-            explanation = explain_sentiment(text, top_n=5)
+            explanation = explain_sentiment(text, top_n=5,matched_rule=adjusted["rule"])
             detailed_examples.append({
                 "text": text,
                 "sentiment_score": adjusted["compound"],
@@ -299,6 +318,19 @@ def keyword_frequency(
     
     empty_block = {"total_mentions": 0, "sentiment_percent": [], "sentiment_count": [], "examples": []}
 
+    examples1 = []
+    for sentiment in ["positive", "neutral", "negative"]:
+        subset1 = [d for d in detailed_examples1 if d["sentiment"] == sentiment]
+        # take 2 from each sentiment 
+        examples1.extend(sorted(subset1, key=lambda x: abs(x["sentiment_score"]), reverse=True)[:2])
+    examples1 = examples1[:5]  # maximum 5 msg
+
+    examples2 = []
+    for sentiment in ["positive", "neutral", "negative"]:
+        subset2 = [d for d in detailed_examples2 if d["sentiment"] == sentiment]
+        # take 2 from each sentiment 
+        examples2.extend(sorted(subset2, key=lambda x: abs(x["sentiment_score"]), reverse=True)[:2])
+    examples2 = examples2[:5]  # maximum 5 msg
     # two result block
     block1 = (
         empty_block
@@ -307,7 +339,7 @@ def keyword_frequency(
             "total_mentions": total_mentions1,
             "sentiment_percent": sentiment_percent_list1,
             "sentiment_count": sentiment_count_list1,
-            "examples": detailed_examples1[:5],
+            "examples": examples1,
         }
     )
 
@@ -318,7 +350,7 @@ def keyword_frequency(
             "total_mentions": total_mentions2,
             "sentiment_percent": sentiment_percent_list2,
             "sentiment_count": sentiment_count_list2,
-            "examples": detailed_examples2[:5],
+            "examples": examples2,
         }
     )
     
@@ -371,6 +403,7 @@ def category_share_of_voice_compare(
     time1: int,
     time2: int,
     group_id: Optional[List[str]]=Query(None),
+    group_year:Optional[int]=None
 ):
     #find the category
     df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
@@ -390,6 +423,8 @@ def category_share_of_voice_compare(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 

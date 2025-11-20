@@ -43,6 +43,20 @@ def load_default_groups():
     return default_groups
 
 
+def load_groups_by_year(group_year: int) -> list:
+    """
+    Return all group_ids where the group_id starts with the given year.
+    """
+    con,_ =load_chat_data()
+    
+    query = """
+    SELECT DISTINCT group_id
+    FROM chat
+    WHERE CAST(SUBSTR(CAST(group_id AS VARCHAR), 1, 4) AS INT) = CAST(? AS INT)
+    ORDER BY group_id
+    """
+    df= con.execute(query,[group_year]).fetch_df()
+    return df["group_id"].tolist()
 
 
 def query_chat(sql: str, params=None):

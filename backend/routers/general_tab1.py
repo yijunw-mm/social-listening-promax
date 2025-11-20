@@ -8,7 +8,7 @@ sys.path.append("..")
 from backend.model_loader import kw_model,encoder
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
-from backend.data_loader import load_chat_data, load_default_groups,query_chat
+from backend.data_loader import load_groups_by_year, load_default_groups,query_chat
 
 router = APIRouter()
 
@@ -19,6 +19,7 @@ df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str}
 
 @router.get("/keyword-frequency")
 def keyword_frequency(group_id: Optional[List[str]] = Query(None),
+                      group_year: Optional[int]=None,
                       stage: Optional[str]=None,
                       year: Optional[int] = None,
                       month: Optional[List[int]] = Query(None),
@@ -27,6 +28,8 @@ def keyword_frequency(group_id: Optional[List[str]] = Query(None),
     #-- default group --
     if not group_id and not stage:
         group_id = load_default_groups()
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)    
     #-- base query --
     query = """
         SELECT clean_text
@@ -76,6 +79,7 @@ def keyword_frequency(group_id: Optional[List[str]] = Query(None),
 
 @router.get("/new-keyword-prediction")
 def new_keyword_prediction(group_id: Optional[List[str]] = Query(None),
+                           group_year: Optional[int]=None,
                            year: Optional[int]=None,
                            month: Optional[int] = None,
                            quarter: Optional[int] = None,
@@ -88,8 +92,9 @@ def new_keyword_prediction(group_id: Optional[List[str]] = Query(None),
         """
     params = []
 
-
     # ---- 2. Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 

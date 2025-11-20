@@ -8,7 +8,8 @@ from keybert import KeyBERT
 from backend.model_loader import kw_model,encoder
 from sentence_transformers import SentenceTransformer, util 
 import spacy
-from backend.data_loader import query_chat, load_default_groups
+from sklearn.cluster import KMeans
+from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
 router = APIRouter()
 
@@ -59,7 +60,8 @@ def count_kw(context_texts, keywords):
 @router.get("/category/share-of-voice")
 def get_share_of_voice(
     group_id:Optional[List[str]]=Query(None),
-     year: Optional[int] =None,
+    group_year:Optional[int]=None,
+    year: Optional[int] =None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
     ):
@@ -71,6 +73,8 @@ def get_share_of_voice(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -133,7 +137,7 @@ def get_share_of_voice(
 
 #-------consumer perception----------
 
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm",disable=["ner"])
 
 def _overlap_fraction(a, b):
     """calculate the overlap percentage between two phrases token"""
@@ -165,20 +169,24 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
     joined_text = " ".join(cleaned_texts)
 
     # Step 2️⃣ KeyBERT extrat keyword
-    keywords = [kw for kw, _ in kw_model.extract_keywords(
-        joined_text,
-        keyphrase_ngram_range=(1, 3),
-        use_mmr=True,
-        diversity=0.7,
-        top_n=top_k*5,
-        stop_words='english'
-    )]
+    keywords = []
+    for chunk_start in range(0,len(texts),200):
+        chunk = " ".join(texts[chunk_start:chunk_start+200])
+        chunk_keywords = [kw for kw, _ in kw_model.extract_keywords(
+            chunk,
+            keyphrase_ngram_range=(1, 3),
+            use_mmr=True,
+            diversity=0.7,
+            top_n=top_k*3,
+            stop_words='english'
+        )]
+        keywords.extend(chunk_keywords)
 
     # Step 3️⃣ POS keep noun, adj
     def is_meaningful(phrase):
-        doc = nlp(phrase)
-        return any(t.pos_ in ["ADJ", "NOUN"] for t in doc)
-    keywords = [kw for kw in keywords if is_meaningful(kw)]
+        docs = list(nlp.pipe(keywords,disable=["ner"]))
+        keywords = [kw for kw,doc in zip(keywords,docs) 
+                if any(t.pos_ in ["ADJ", "NOUN"] for t in doc)]
 
     # Step 4️⃣ calculate semantic centre
     if not keywords:
@@ -203,14 +211,28 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
     results = [{"word": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[1], reverse=True)]
     return results
 
+def extract_context(text, brand_list, window=10):
+    """
+    "I love the medela pump suction power" -> "love the medela pump suction power"
+    """
+    tokens = text.split()
+    text_lower = text.lower()
+    for i, tok in enumerate(tokens):
+        if any(b in tok.lower() for b in brand_list):
+            start = max(0, i - window)
+            end = min(len(tokens), i + window)
+            return " ".join(tokens[start:end])
+    return None
+
 @router.get("/category/consumer-perception")
 def category_consumer_perception(category_name:str, 
-                                 top_k:int=20, 
-                                 group_id:Optional[List[str]]=Query(None),
-                                 year: Optional[int] =None,
+                                top_k:int=20, 
+                                group_id:Optional[List[str]]=Query(None),
+                                group_year:Optional[int]=None,
+                                year: Optional[int] =None,
                                 month: Optional[List[int]] = Query(None),
                                 quarter: Optional[int] = None):
-    brand_in_category = [b for b,c in brand_category_map.items() if c==category_name]
+    brand_in_category = [b for b,cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:
         return {"error":f"category '{category_name}' not found"}
     
@@ -221,6 +243,8 @@ def category_consumer_perception(category_name:str,
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -258,11 +282,17 @@ def category_consumer_perception(category_name:str,
 
     if not relevant_texts:
         return {"category": category_name,"associated_words": []}
-
+    context_texts = []
+    for t in relevant_texts:
+        context = extract_context(t, brand_in_category, window=10)
+        if context:
+            context_texts.append(context)
+    if not context_texts:
+        return {"category": category_name,"associated_words": []}
     # Step 4️⃣ extract keyword
     associated_words = extract_clean_brand_keywords_auto(
         relevant_texts,
-        brand_name="",  
+        brand_name="",
         top_k=top_k
     )
 
@@ -312,6 +342,7 @@ def extract_category_context(df, brand_list, window_size=6, merge_overlap=True):
 def category_keyword_frequency(
     category_name: str,
     group_id: Optional[List[str]] = Query(None),
+    group_year:Optional[int]=None,
     year: Optional[int] = None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None,
@@ -319,7 +350,7 @@ def category_keyword_frequency(
     merge_overlap: bool = True,
 ):
     # ---- 1. Identify brands in the category ----
-    brand_in_category = [b for b, c in brand_category_map.items() if c == category_name]
+    brand_in_category = [b for b, cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:
         return {"error": f"Category '{category_name}' not found or has no brands."}
 
@@ -333,6 +364,8 @@ def category_keyword_frequency(
     query = "SELECT clean_text FROM chat WHERE clean_text IS NOT NULL"
     params = []
 
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
     if group_id:

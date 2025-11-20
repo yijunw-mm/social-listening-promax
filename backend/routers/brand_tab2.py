@@ -10,7 +10,7 @@ import re
 from keybert import KeyBERT
 from sentence_transformers import SentenceTransformer, util 
 import spacy
-from backend.data_loader import query_chat,load_default_groups
+from backend.data_loader import query_chat,load_default_groups,load_groups_by_year
 
 router = APIRouter()
 
@@ -70,6 +70,7 @@ def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
 def keyword_frequency(
     brand_name: str,
     group_id:Optional[List[str]]=Query(None),
+    group_year: Optional[int]=None,
     year: Optional[int] = None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None,
@@ -92,6 +93,8 @@ def keyword_frequency(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -222,6 +225,7 @@ def explain_sentiment(text, top_n=5):
 def brand_sentiment_analysis_vader(
     brand_name: str,
     group_id: Optional[List[str]] = Query(None),
+    group_year: Optional[int] =None,
     year: Optional[int] =None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
@@ -236,6 +240,8 @@ def brand_sentiment_analysis_vader(
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
@@ -393,6 +399,7 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
 @router.get("/brand/consumer-perception")
 def consumer_perception(brand_name: str, 
                         group_id:Optional[List[str]]=Query(None),
+                        group_year:Optional[int]=None,
                         year: Optional[int] = None,
                         month: Optional[int] = None,
                         quarter: Optional[int] = None,
@@ -408,6 +415,8 @@ def consumer_perception(brand_name: str,
     FROM chat WHERE clean_text IS NOT NULL"""
     params = []
     # ---- Default groups ----
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
     if not group_id:
         group_id = load_default_groups()
 
