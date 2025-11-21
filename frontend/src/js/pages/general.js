@@ -10,6 +10,26 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 
 let chartInstances = {};
 
+// Helper function to get filter parameters (years and group_id)
+function getFilterParams() {
+    const params = {};
+    const selectedYears = window.getSelectedYears ? window.getSelectedYears() : [];
+    const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
+
+    // If years are selected, use group_year parameter (can be single or multiple)
+    if (selectedYears && selectedYears.length > 0) {
+        // If only one year, send as integer, otherwise as array
+        params.group_year = selectedYears.length === 1 ? selectedYears[0] : selectedYears;
+    }
+
+    // If group chats are selected, add group_id parameter
+    if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
+        params.group_id = groupChat;
+    }
+
+    return params;
+}
+
 // Export loading functions for each chart
 export async function loadKeywordFrequencyData() {
     console.log('Loading keyword frequency data');
@@ -43,11 +63,7 @@ async function loadKeywordFrequency() {
     }
 
     try {
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {};
-        if (groupChat?.length > 0) {
-            params.group_id = groupChat;
-        }
+        const params = getFilterParams();
 
         console.log('Fetching keyword frequency with params:', params);
         const data = await keywordFrequency(params);
@@ -92,12 +108,7 @@ async function loadNewKeywords() {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {};
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array
-        }
+        const params = getFilterParams();
 
         const data = await new_keywords(params);
 
@@ -129,9 +140,12 @@ function renderKeywordFrequencyChart(canvasId, data) {
     console.log('Canvas found, getting context...');
     const ctx = canvas.getContext('2d');
 
+    // Sort data in descending order by count
+    const sortedData = [...data].sort((a, b) => b.count - a.count);
+
     // Extract keywords and counts
-    const keywords = data.map(item => item.keyword);
-    const counts = data.map(item => item.count);
+    const keywords = sortedData.map(item => item.keyword);
+    const counts = sortedData.map(item => item.count);
 
     console.log('Keywords:', keywords);
     console.log('Counts:', counts);
@@ -145,7 +159,7 @@ function renderKeywordFrequencyChart(canvasId, data) {
             datasets: [{
                 label: 'Keyword Frequency',
                 data: counts,
-                backgroundColor: '#4ab4deff',
+                backgroundColor: '#48b7e3ff',
                 borderColor: '#3d9dc7',
                 borderWidth: 1
             }]
@@ -223,9 +237,16 @@ function renderNewKeywordsChart(canvasId, data) {
 
     const ctx = canvas.getContext('2d');
 
+    // Sort data in descending order by score
+    const sortedData = [...data].sort((a, b) => {
+        const scoreA = a.score || a.prediction || a.count || 1;
+        const scoreB = b.score || b.prediction || b.count || 1;
+        return scoreB - scoreA;
+    });
+
     // Extract keywords and predictions/scores
-    const keywords = data.map(item => item.keyword || item.word);
-    const scores = data.map(item => item.score || item.prediction || item.count || 1);
+    const keywords = sortedData.map(item => item.keyword || item.word);
+    const scores = sortedData.map(item => item.score || item.prediction || item.count || 1);
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -236,7 +257,7 @@ function renderNewKeywordsChart(canvasId, data) {
             datasets: [{
                 label: 'Predicted New Keywords',
                 data: scores,
-                backgroundColor: '#60a5fa',
+                backgroundColor: '#48b7e3ff',
                 borderColor: '#3b82f6',
                 borderWidth: 1
             }]

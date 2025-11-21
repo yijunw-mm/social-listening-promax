@@ -1,7 +1,52 @@
 /**
  * Shared layout loader for all pages
  */
-import { groupChat } from './api/api.js';
+import { groupChat, availableYears } from './api/api.js';
+
+async function loadYears() {
+    try {
+        const container = document.getElementById("yearCheckboxes");
+        if (!container) return;
+
+        const response = await availableYears();
+        const years = response.years || [];
+
+        container.innerHTML = '';
+
+        // Load previously selected years (multiple selections allowed)
+        const savedYears = JSON.parse(localStorage.getItem('selectedYears') || '[]');
+
+        years.forEach(year => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex items-center space-x-2 text-gray-300";
+
+            wrapper.innerHTML = `
+                <input type="checkbox"
+                    class="year-checkbox w-4 h-4 accent-purple-500"
+                    value="${year}"
+                    ${savedYears.includes(year) ? 'checked' : ''} />
+                <span>${year}</span>
+            `;
+
+            container.appendChild(wrapper);
+        });
+
+        // Event listener for year selection
+        container.addEventListener('change', () => {
+            const selected = Array.from(
+                document.querySelectorAll('.year-checkbox:checked')
+            ).map(cb => parseInt(cb.value));
+
+            localStorage.setItem('selectedYears', JSON.stringify(selected));
+
+            // Notify other components
+            window.dispatchEvent(new Event('yearChanged'));
+        });
+
+    } catch (error) {
+        console.error('Failed to load years:', error);
+    }
+}
 
 async function loadGroupChats() {
     try {
@@ -11,7 +56,7 @@ async function loadGroupChats() {
         const response = await groupChat();
         const groupChats = response.groups || [];
 
-        container.innerHTML = ''; 
+        container.innerHTML = '';
 
         // Load previously selected chats
         const savedSelections = JSON.parse(localStorage.getItem('selectedGroupChats') || '[]');
@@ -24,9 +69,9 @@ async function loadGroupChats() {
             wrapper.className = "flex items-center space-x-2 text-gray-300";
 
             wrapper.innerHTML = `
-                <input type="checkbox" 
+                <input type="checkbox"
                     class="group-checkbox w-4 h-4 accent-purple-500"
-                    value="${id}" 
+                    value="${id}"
                     ${savedSelections.includes(id) ? 'checked' : ''} />
                 <span>${label}</span>
             `;
@@ -55,6 +100,11 @@ window.getSelectedGroupChats = function () {
     return JSON.parse(localStorage.getItem('selectedGroupChats') || '[]');
 };
 
+// Helper function to get selected years (can be called from any page)
+window.getSelectedYears = function () {
+    return JSON.parse(localStorage.getItem('selectedYears') || '[]');
+};
+
 
 async function loadLayout(pageId) {
     try {
@@ -70,8 +120,9 @@ async function loadLayout(pageId) {
 
         // Set active tab based on current page
         setActiveTab(pageId);
-       
-        // Load group chats into selector
+
+        // Load years and group chats into selectors
+        await loadYears();
         await loadGroupChats();
     } catch (error) {
         console.error('Failed to load layout:', error);

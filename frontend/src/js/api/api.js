@@ -15,9 +15,30 @@ function buildURL(endpoint, params = {}) {
     return url;
 }
 
-//group chat number 
+//group chat number
 async function groupChat(params = {}) {
     const url = new URL(`${BASE_URL}/chat-number`);
+
+    // attach params to URL
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+//available years
+async function availableYears(params = {}) {
+    const url = new URL(`${BASE_URL}/available-years`);
 
     // attach params to URL
     Object.keys(params).forEach(key => {
@@ -304,6 +325,7 @@ async function get_comparison_consumer_perception(params = {}) {
 
 export {
     groupChat,
+    availableYears,
     keywordFrequency,
     new_keywords,
     get_brand_keyword,

@@ -20,7 +20,7 @@
     <script type="module" src="./src/js/pages/time.js"></script>
 
     <script type="module">
-        import { loadKeywordComparisonData, loadSentimentComparisonData, loadShareOfVoiceComparisonData } from './src/js/pages/time.js';
+        import { loadKeywordComparisonData, loadSentimentComparisonData, loadShareOfVoiceComparisonData, initTimeKeywordManagement, initSentimentComparisonExamplesToggle } from './src/js/pages/time.js';
         import { loadLayout } from './src/js/layout-loader.js';
 
         async function loadPage() {
@@ -165,6 +165,25 @@
                             </button>
 
                             <canvas id="keywordCompareChart"></canvas>
+
+                            <!-- Keyword Management Section -->
+                            <div class="mt-4 pt-4 border-t border-[#3d4456]">
+                                <div class="flex gap-2 mb-3">
+                                    <input
+                                        type="text"
+                                        id="timeKeywordInput"
+                                        placeholder="Add custom keyword..."
+                                        class="flex-1 bg-[#252d3d] text-white px-3 py-2 rounded border border-[#3d4456] focus:outline-none focus:border-purple-500"
+                                    />
+                                    <button
+                                        id="timeAddKeywordBtn"
+                                        class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded font-medium">
+                                        Add
+                                    </button>
+                                </div>
+                                <div id="timeCustomKeywordsList" class="flex flex-wrap gap-2"></div>
+                            </div>
+
                             <div id="loadingOverlay-keywordCompareChart" class="chart-loading-overlay">
                                 <div class="loading-spinner"></div>
                                 <p class="text-white text-sm font-semibold mt-3">Loading...</p>
@@ -202,6 +221,21 @@
                             </button>
 
                             <canvas id="sentimentCompareChart"></canvas>
+
+                            <!-- Top Messages Section -->
+                            <div id="sentimentComparisonExamples" class="mt-6 pt-4 border-t border-[#3d4456]">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-white font-semibold">Top Messages</h4>
+                                    <button id="toggleSentimentComparisonExamples" class="text-gray-400 hover:text-white text-sm font-medium">
+                                        <span id="toggleSentimentComparisonExamplesText">Hide</span>
+                                        <span id="toggleSentimentComparisonExamplesIcon">▼</span>
+                                    </button>
+                                </div>
+                                <div id="sentimentComparisonExamplesList" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <!-- Examples will be populated here -->
+                                </div>
+                            </div>
+
                             <div id="loadingOverlay-sentimentCompareChart" class="chart-loading-overlay">
                                 <div class="loading-spinner"></div>
                                 <p class="text-white text-sm font-semibold mt-3">Loading...</p>
@@ -339,6 +373,12 @@
                     await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
                 });
             }
+
+            // Initialize keyword management for time comparison
+            initTimeKeywordManagement();
+
+            // Initialize sentiment comparison examples toggle
+            initSentimentComparisonExamplesToggle();
 
             // Listen for group chat changes - note: charts won't auto-reload since they require user-configured parameters
             // User needs to click Analyze button after changing group chat selection

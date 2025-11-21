@@ -8,6 +8,26 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 }
 
 let chartInstances = {};
+let hiddenCategoryPerceptionWords = new Set();
+
+// Helper function to get filter parameters (years and group_id)
+function getFilterParams(additionalParams = {}) {
+    const params = { ...additionalParams };
+    const selectedYears = window.getSelectedYears ? window.getSelectedYears() : [];
+    const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
+
+    // If years are selected, use group_year parameter
+    if (selectedYears && selectedYears.length > 0) {
+        params.group_year = selectedYears.length === 1 ? selectedYears[0] : selectedYears;
+    }
+
+    // If group chats are selected, add group_id parameter
+    if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
+        params.group_id = groupChat;
+    }
+
+    return params;
+}
 
 // Export loading function
 export async function loadConsumerPerceptionData(category) {
@@ -22,14 +42,7 @@ async function loadConsumerPerception(category) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
-            category_name: category
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array
-        }
+        const params = getFilterParams({ category_name: category });
 
         const data = await get_comparison_consumer_perception(params);
 
@@ -45,8 +58,10 @@ async function loadConsumerPerception(category) {
             showNoDataMessage(canvasId, 'No consumer perception data available for this category');
             return;
         }
+        const topData = [...data]
+        .sort((a, b) => b.count - a.count).slice(0, 20);
 
-        renderConsumerPerceptionChart(canvasId, data);
+        renderConsumerPerceptionChart(canvasId,topData);
     } catch (err) {
         console.error('Error loading consumer perception:', err);
         showNoDataMessage(canvasId, 'Error loading data');
@@ -62,9 +77,15 @@ function renderConsumerPerceptionChart(canvasId, data) {
 
     const ctx = canvas.getContext('2d');
 
+    // Filter out hidden words
+    const filteredData = data.filter(item => {
+        const word = (item.word || '').toLowerCase();
+        return !hiddenCategoryPerceptionWords.has(word);
+    });
+
     // Extract words and counts
-    const words = data.map(item => item.word);
-    const counts = data.map(item => item.count);
+    const words = filteredData.map(item => item.word);
+    const counts = filteredData.map(item => item.count);
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -75,7 +96,7 @@ function renderConsumerPerceptionChart(canvasId, data) {
             datasets: [{
                 label: 'Word Frequency',
                 data: counts,
-                backgroundColor: '#60a5fa',
+                backgroundColor: '#48b7e3ff',
                 borderColor: '#3b82f6',
                 borderWidth: 1
             }]
@@ -163,4 +184,95 @@ function showNoDataMessage(canvasId, message) {
     ctx.fillStyle = "#9ca3af";
     ctx.textAlign = "center";
     ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
+
+// ---- CONSUMER PERCEPTION WORD FILTERING ----
+export function initCategoryPerceptionWordFilter() {
+    const filterInput = document.getElementById('perceptionCategoryWordFilterInput');
+    const removeBtn = document.getElementById('removePerceptionWordBtn');
+
+    if (!filterInput) return;
+
+    // Handle Enter key to hide word
+    filterInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            hideWord();
+        }
+    });
+
+    // Handle remove button click
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            hideWord();
+        });
+    }
+
+    function hideWord() {
+        const input = filterInput.value.trim().toLowerCase();
+        if (!input) return;
+
+        // Split by comma or space and filter empty strings
+        const words = input.split(/[,\s]+/).filter(w => w.length > 0);
+
+        if (words.length === 0) return;
+
+        // Add all words to hidden words set
+        words.forEach(word => hiddenCategoryPerceptionWords.add(word));
+
+        // Clear input
+        filterInput.value = '';
+
+        // Re-render chart with filtered data
+        const categorySelector = document.getElementById('categorySelector');
+        const category = categorySelector ? categorySelector.value : 'diaper';
+        loadConsumerPerception(category);
+
+        // Update hidden words display
+        displayCategoryHiddenWords();
+    }
+
+    // Display existing hidden words on load
+    displayCategoryHiddenWords();
+}
+
+function displayCategoryHiddenWords() {
+    const container = document.getElementById('perceptionCategoryHiddenWordsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (hiddenCategoryPerceptionWords.size === 0) {
+        container.innerHTML = '<span class="text-gray-500 text-sm">No hidden words</span>';
+        return;
+    }
+
+    hiddenCategoryPerceptionWords.forEach(word => {
+        const tag = document.createElement('div');
+        tag.className = 'flex items-center gap-2 bg-red-500 text-white px-3 py-1 rounded-full text-sm';
+        tag.innerHTML = `
+            <span>${word}</span>
+            <button class="hover:text-gray-300 font-bold" data-word="${word}">×</button>
+        `;
+
+        // Add restore handler
+        tag.querySelector('button').addEventListener('click', (e) => {
+            const wordToRestore = e.target.getAttribute('data-word');
+            restoreCategoryWord(wordToRestore);
+        });
+
+        container.appendChild(tag);
+    });
+}
+
+function restoreCategoryWord(word) {
+    // Remove from hidden words set
+    hiddenCategoryPerceptionWords.delete(word.toLowerCase());
+
+    // Re-render chart
+    const categorySelector = document.getElementById('categorySelector');
+    const category = categorySelector ? categorySelector.value : 'diaper';
+    loadConsumerPerception(category);
+
+    // Update display
+    displayCategoryHiddenWords();
 }

@@ -1,7 +1,9 @@
 import {
     get_time_compare_frequency,
     get_time_compare_sentiment,
-    get_time_compare_share_of_voice
+    get_time_compare_share_of_voice,
+    add_brand_keyword,
+    remove_brand_keyword
 } from '../api/api.js';
 
 // Register the datalabels plugin globally - check if available first
@@ -10,6 +12,25 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 }
 
 let chartInstances = {};
+
+// Helper function to get filter parameters (years and group_id)
+function getFilterParams(additionalParams = {}) {
+    const params = { ...additionalParams };
+    const selectedYears = window.getSelectedYears ? window.getSelectedYears() : [];
+    const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
+
+    // If years are selected, use group_year parameter
+    if (selectedYears && selectedYears.length > 0) {
+        params.group_year = selectedYears.length === 1 ? selectedYears[0] : selectedYears;
+    }
+
+    // If group chats are selected, add group_id parameter
+    if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
+        params.group_id = groupChat;
+    }
+
+    return params;
+}
 
 // Brand to category mapping
 const brandCategoryMap = {
@@ -79,17 +100,12 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
+        const params = getFilterParams({
             brand_name: brandName,
             granularity: granularity,
             time1: time1,
             time2: time2
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array, not joined string
-        }
+        });
 
         const data = await get_time_compare_frequency(params);
 
@@ -116,17 +132,12 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
+        const params = getFilterParams({
             brand_name: brandName,
             granularity: granularity,
             time1: time1,
             time2: time2
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array, not joined string
-        }
+        });
 
         const data = await get_time_compare_sentiment(params);
 
@@ -134,13 +145,16 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
 
         if (data.error) {
             showNoDataMessage(canvasId, data.error);
+            displaySentimentComparisonExamples({}, time1, time2);
             return;
         }
 
         renderSentimentComparisonChart(canvasId, data, time1, time2);
+        displaySentimentComparisonExamples(data.compare || {}, time1, time2);
     } catch (err) {
         console.error('Error loading sentiment comparison:', err);
         showNoDataMessage(canvasId, 'Error loading data');
+        displaySentimentComparisonExamples({}, time1, time2);
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
@@ -153,17 +167,12 @@ async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
+        const params = getFilterParams({
             category_name: category,
             granularity: granularity,
             time1: time1,
             time2: time2
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array, not joined string
-        }
+        });
 
         const data = await get_time_compare_share_of_voice(params);
 
@@ -206,11 +215,16 @@ function renderKeywordComparisonChart(canvasId, data, time1, time2) {
     time1Data.forEach(item => allKeywords.add(item.keyword));
     time2Data.forEach(item => allKeywords.add(item.keyword));
 
-    const keywords = Array.from(allKeywords);
-
     // Create count maps
     const time1Map = Object.fromEntries(time1Data.map(item => [item.keyword, item.count]));
     const time2Map = Object.fromEntries(time2Data.map(item => [item.keyword, item.count]));
+
+    // Sort keywords by total count (sum of both periods) in descending order
+    const keywords = Array.from(allKeywords).sort((a, b) => {
+        const totalA = (time1Map[a] || 0) + (time2Map[a] || 0);
+        const totalB = (time1Map[b] || 0) + (time2Map[b] || 0);
+        return totalB - totalA;
+    });
 
     // Prepare datasets
     const dataset1 = keywords.map(kw => time1Map[kw] || 0);
@@ -226,12 +240,12 @@ function renderKeywordComparisonChart(canvasId, data, time1, time2) {
                 {
                     label: `${time1}`,
                     data: dataset1,
-                    backgroundColor: '#4ab4deff'
+                    backgroundColor: '#48b7e3ff'
                 },
                 {
                     label: `${time2}`,
                     data: dataset2,
-                    backgroundColor: '#60a5fa'
+                    backgroundColor: '#2c4ea6ff'
                 }
             ]
         },
@@ -323,13 +337,13 @@ function renderSentimentComparisonChart(canvasId, data, time1, time2) {
                 {
                     label: `${time1}`,
                     data: [time1Percent.positive || 0, time1Percent.neutral || 0, time1Percent.negative || 0],
-                    backgroundColor: '#29b0e5ff',
+                    backgroundColor: '#48b7e3ff',
                     position: 'bottom'
                 },
                 {
                     label: `${time2}`,
                     data: [time2Percent.positive || 0, time2Percent.neutral || 0, time2Percent.negative || 0],
-                    backgroundColor: '#16539eff',
+                    backgroundColor: '#2c4ea6ff',
                     position: 'bottom'
                 }
             ]
@@ -421,11 +435,16 @@ function renderShareOfVoiceComparisonChart(canvasId, data, time1, time2) {
     time1Data.forEach(item => allBrands.add(item.brand));
     time2Data.forEach(item => allBrands.add(item.brand));
 
-    const brands = Array.from(allBrands);
-
     // Create percent maps
     const time1Map = Object.fromEntries(time1Data.map(item => [item.brand, item.percent]));
     const time2Map = Object.fromEntries(time2Data.map(item => [item.brand, item.percent]));
+
+    // Sort brands by total percent (sum of both periods) in descending order
+    const brands = Array.from(allBrands).sort((a, b) => {
+        const totalA = (time1Map[a] || 0) + (time2Map[a] || 0);
+        const totalB = (time1Map[b] || 0) + (time2Map[b] || 0);
+        return totalB - totalA;
+    });
 
     // Prepare datasets
     const dataset1 = brands.map(b => time1Map[b] || 0);
@@ -441,12 +460,12 @@ function renderShareOfVoiceComparisonChart(canvasId, data, time1, time2) {
                 {
                     label: `${time1}`,
                     data: dataset1,
-                    backgroundColor: '#4ab4deff'
+                    backgroundColor: '#48b7e3ff'
                 },
                 {
                     label: `${time2}`,
                     data: dataset2,
-                    backgroundColor: '#60a5fa'
+                    backgroundColor: '#2c4ea6ff'
                 }
             ]
         },
@@ -523,4 +542,260 @@ function showNoDataMessage(canvasId, message) {
     ctx.fillStyle = "#9ca3af";
     ctx.textAlign = "center";
     ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
+
+// ---- KEYWORD MANAGEMENT FOR TIME COMPARISON ----
+export function initTimeKeywordManagement() {
+    const addBtn = document.getElementById('timeAddKeywordBtn');
+    const keywordInput = document.getElementById('timeKeywordInput');
+
+    if (!addBtn || !keywordInput) return;
+
+    // Handle add keyword
+    addBtn.addEventListener('click', async () => {
+        const keyword = keywordInput.value.trim();
+        if (!keyword) return;
+
+        const brandSelector = document.getElementById('brandSelector');
+        const brandName = brandSelector ? brandSelector.value : 'mamypoko';
+
+        try {
+            await add_brand_keyword({ brand_name: brandName, keyword: keyword });
+            console.log(`Added keyword: ${keyword} for brand: ${brandName}`);
+
+            // Track in localStorage
+            addTimeCustomKeyword(brandName, keyword);
+
+            // Clear input
+            keywordInput.value = '';
+
+            // Reload chart if there's data to compare
+            const granularity = document.getElementById('keywordGranularitySelector')?.value;
+            const time1 = document.getElementById('keywordTime1Input')?.value.trim();
+            const time2 = document.getElementById('keywordTime2Input')?.value.trim();
+
+            if (granularity && time1 && time2) {
+                await loadKeywordComparison(brandName, granularity, time1, time2);
+            }
+
+            // Update keyword tags display
+            displayTimeCustomKeywords(brandName);
+        } catch (err) {
+            console.error('Error adding keyword:', err);
+            alert('Failed to add keyword. Please try again.');
+        }
+    });
+
+    // Handle Enter key in input field
+    keywordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            addBtn.click();
+        }
+    });
+
+    // Display existing keywords on load
+    const brandSelector = document.getElementById('brandSelector');
+    if (brandSelector) {
+        const brandName = brandSelector.value;
+        displayTimeCustomKeywords(brandName);
+
+        // Update keywords display when brand changes
+        brandSelector.addEventListener('change', () => {
+            displayTimeCustomKeywords(brandSelector.value);
+        });
+    }
+}
+
+async function displayTimeCustomKeywords(brandName) {
+    const container = document.getElementById('timeCustomKeywordsList');
+    if (!container) return;
+
+    try {
+        // Get custom keywords from localStorage
+        const customKeywords = getTimeCustomKeywords(brandName);
+
+        container.innerHTML = '';
+
+        customKeywords.forEach(keyword => {
+            const tag = document.createElement('div');
+            tag.className = 'flex items-center gap-2 bg-purple-500 text-white px-3 py-1 rounded-full text-sm';
+            tag.innerHTML = `
+                <span>${keyword}</span>
+                <button class="hover:text-red-300 font-bold" data-keyword="${keyword}">×</button>
+            `;
+
+            // Add remove handler
+            tag.querySelector('button').addEventListener('click', async (e) => {
+                const keywordToRemove = e.target.getAttribute('data-keyword');
+                await removeTimeKeyword(brandName, keywordToRemove);
+            });
+
+            container.appendChild(tag);
+        });
+    } catch (err) {
+        console.error('Error displaying keywords:', err);
+    }
+}
+
+async function removeTimeKeyword(brandName, keyword) {
+    try {
+        await remove_brand_keyword({ brand_name: brandName, keyword: keyword });
+        console.log(`Removed keyword: ${keyword} for brand: ${brandName}`);
+
+        // Remove from localStorage
+        removeTimeCustomKeyword(brandName, keyword);
+
+        // Reload chart if there's data to compare
+        const granularity = document.getElementById('keywordGranularitySelector')?.value;
+        const time1 = document.getElementById('keywordTime1Input')?.value.trim();
+        const time2 = document.getElementById('keywordTime2Input')?.value.trim();
+
+        if (granularity && time1 && time2) {
+            await loadKeywordComparison(brandName, granularity, time1, time2);
+        }
+
+        // Update display
+        displayTimeCustomKeywords(brandName);
+    } catch (err) {
+        console.error('Error removing keyword:', err);
+        alert('Failed to remove keyword. Please try again.');
+    }
+}
+
+// LocalStorage helpers for tracking custom keywords in time comparison
+function getTimeCustomKeywords(brandName) {
+    const stored = localStorage.getItem(`timeCustomKeywords_${brandName}`);
+    return stored ? JSON.parse(stored) : [];
+}
+
+function addTimeCustomKeyword(brandName, keyword) {
+    const keywords = getTimeCustomKeywords(brandName);
+    if (!keywords.includes(keyword)) {
+        keywords.push(keyword);
+        localStorage.setItem(`timeCustomKeywords_${brandName}`, JSON.stringify(keywords));
+    }
+}
+
+function removeTimeCustomKeyword(brandName, keyword) {
+    const keywords = getTimeCustomKeywords(brandName);
+    const filtered = keywords.filter(k => k !== keyword);
+    localStorage.setItem(`timeCustomKeywords_${brandName}`, JSON.stringify(filtered));
+}
+
+// ---- SENTIMENT EXAMPLES DISPLAY & TOGGLE ----
+export function initSentimentComparisonExamplesToggle() {
+    const toggleBtn = document.getElementById('toggleSentimentComparisonExamples');
+    const examplesList = document.getElementById('sentimentComparisonExamplesList');
+    const toggleText = document.getElementById('toggleSentimentComparisonExamplesText');
+    const toggleIcon = document.getElementById('toggleSentimentComparisonExamplesIcon');
+
+    if (!toggleBtn || !examplesList) return;
+
+    let isVisible = true;
+
+    toggleBtn.addEventListener('click', () => {
+        isVisible = !isVisible;
+
+        if (isVisible) {
+            examplesList.style.display = 'grid';
+            toggleText.textContent = 'Hide';
+            toggleIcon.textContent = '▼';
+        } else {
+            examplesList.style.display = 'none';
+            toggleText.textContent = 'Show';
+            toggleIcon.textContent = '▶';
+        }
+    });
+}
+
+function displaySentimentComparisonExamples(compareData, time1, time2) {
+    const container = document.getElementById('sentimentComparisonExamplesList');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const data1 = compareData[time1] || {};
+    const data2 = compareData[time2] || {};
+    const examples1 = data1.examples || [];
+    const examples2 = data2.examples || [];
+
+    // Get sentiment color based on sentiment type
+    const getSentimentColor = (sentiment) => {
+        switch(sentiment.toLowerCase()) {
+            case 'positive': return 'bg-green-500/20 border-green-500';
+            case 'negative': return 'bg-red-500/20 border-red-500';
+            case 'neutral': return 'bg-blue-500/20 border-blue-500';
+            default: return 'bg-gray-500/20 border-gray-500';
+        }
+    };
+
+    const getSentimentTextColor = (sentiment) => {
+        switch(sentiment.toLowerCase()) {
+            case 'positive': return 'text-green-400';
+            case 'negative': return 'text-red-400';
+            case 'neutral': return 'text-blue-400';
+            default: return 'text-gray-400';
+        }
+    };
+
+    const createExampleCard = (example) => {
+        const card = document.createElement('div');
+        card.className = `p-3 rounded-lg border-l-4 ${getSentimentColor(example.sentiment)}`;
+
+        card.innerHTML = `
+            <div class="flex items-start justify-between mb-2">
+                <span class="font-semibold ${getSentimentTextColor(example.sentiment)} capitalize">
+                    ${example.sentiment}
+                </span>
+                <span class="text-gray-400 text-sm">
+                    Score: ${example.sentiment_score.toFixed(3)}
+                </span>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed mb-2">
+                ${example.text}
+            </p>
+            ${example.rule_applied ? `
+                <div class="text-xs text-gray-500 italic">
+                    Rule: ${example.rule_applied}
+                </div>
+            ` : ''}
+        `;
+
+        return card;
+    };
+
+    // Create column for time period 1
+    const col1 = document.createElement('div');
+    col1.className = 'space-y-3';
+    col1.innerHTML = `<h5 class="text-white font-medium mb-3">${time1}</h5>`;
+
+    if (examples1.length === 0) {
+        col1.innerHTML += '<p class="text-gray-400 text-sm">No examples available</p>';
+    } else {
+        const examplesContainer = document.createElement('div');
+        examplesContainer.className = 'space-y-3 max-h-96 overflow-y-auto';
+        examples1.forEach(example => {
+            examplesContainer.appendChild(createExampleCard(example));
+        });
+        col1.appendChild(examplesContainer);
+    }
+
+    // Create column for time period 2
+    const col2 = document.createElement('div');
+    col2.className = 'space-y-3';
+    col2.innerHTML = `<h5 class="text-white font-medium mb-3">${time2}</h5>`;
+
+    if (examples2.length === 0) {
+        col2.innerHTML += '<p class="text-gray-400 text-sm">No examples available</p>';
+    } else {
+        const examplesContainer = document.createElement('div');
+        examplesContainer.className = 'space-y-3 max-h-96 overflow-y-auto';
+        examples2.forEach(example => {
+            examplesContainer.appendChild(createExampleCard(example));
+        });
+        col2.appendChild(examplesContainer);
+    }
+
+    container.appendChild(col1);
+    container.appendChild(col2);
 }

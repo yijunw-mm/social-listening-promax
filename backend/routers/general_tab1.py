@@ -8,7 +8,7 @@ sys.path.append("..")
 from backend.model_loader import kw_model,encoder
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
-from backend.data_loader import load_groups_by_year, load_default_groups,query_chat
+from backend.data_loader import load_groups_by_year, load_default_groups, query_chat, load_available_years
 
 router = APIRouter()
 
@@ -180,4 +180,17 @@ def get_groups():
     return{
         "total":len(groups),
         "groups":result
+    }
+
+
+@router.get("/available-years")
+def get_available_years():
+    """
+    Get all distinct years from the group_id data.
+    Returns a list of years in descending order.
+    """
+    years = load_available_years()
+    return {
+        "total": len(years),
+        "years": years
     }

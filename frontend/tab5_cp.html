@@ -19,7 +19,7 @@
 
     <script type="module">
         import { loadLayout } from './src/js/layout-loader.js';
-        import { loadConsumerPerceptionData } from './src/js/pages/consumer.js';
+        import { loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/consumer.js';
 
         async function loadPage() {
             // Wait for Chart.js to be available
@@ -72,6 +72,23 @@
                     </div>
                     <div class="relative" style="min-height: 400px; position: relative;">
                         <canvas id="consumerPerceptionChart"></canvas>
+                        <!--Word Filter Section -->
+                            <div class="mt-4 pt-4 border-t border-[#3d4456]">
+                                <div class="flex gap-2 mb-3">
+                                    <input 
+                                    type="text"
+                                    id="perceptionCategoryWordFilterInput"
+                                    placeholder="Remove word from chart..."
+                                    class="flex-1 bg-[#252d3d] text-white px-3 py-2 rounded border border-[#3d4456] focus:outline-none focus:border-purple-500"
+                                    />
+                                     <button
+                                        id="removePerceptionWordBtn"
+                                        class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded font-medium">
+                                        Remove
+                                    </button>
+                                </div>
+                                <div id="perceptionCategoryHiddenWordsList" class="flex flex-wrap gap-2"></div>
+                            </div>
                         <div id="loadingOverlay-consumerPerceptionChart" class="chart-loading-overlay">
                             <div class="loading-spinner"></div>
                         </div>
@@ -120,6 +137,9 @@
                 console.log('Analyzing Consumer Perception for category:', category);
                 await loadConsumerPerceptionData(category);
             });
+
+            // Initialize perception word filter
+            initCategoryPerceptionWordFilter();
 
             // Listen for group chat changes (when checkboxes change in sidebar)
             window.addEventListener('groupChatChanged', async () => {

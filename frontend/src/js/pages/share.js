@@ -10,6 +10,25 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 
 let chartInstances = {};
 
+// Helper function to get filter parameters (years and group_id)
+function getFilterParams(additionalParams = {}) {
+    const params = { ...additionalParams };
+    const selectedYears = window.getSelectedYears ? window.getSelectedYears() : [];
+    const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
+
+    // If years are selected, use group_year parameter
+    if (selectedYears && selectedYears.length > 0) {
+        params.group_year = selectedYears.length === 1 ? selectedYears[0] : selectedYears;
+    }
+
+    // If group chats are selected, add group_id parameter
+    if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
+        params.group_id = groupChat;
+    }
+
+    return params;
+}
+
 // Category options mapping
 const categoryOptions = [
     'diaper',
@@ -36,14 +55,7 @@ async function loadShareOfVoice(category) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
-            category_name: category
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array
-        }
+        const params = getFilterParams({ category_name: category });
 
         const data = await get_share_of_voice(params);
 
@@ -70,14 +82,7 @@ async function loadComparisonKeywordFrequency(category) {
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        // Get selected group chat
-        const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
-        const params = {
-            category_name: category
-        };
-        if (groupChat && Array.isArray(groupChat) && groupChat.length > 0) {
-            params.group_id = groupChat; // Pass as array
-        }
+        const params = getFilterParams({ category_name: category });
 
         const data = await get_comparison_keyword_frequency(params);
 
@@ -114,9 +119,16 @@ function renderShareOfVoiceChart(canvasId, data, category) {
 
     const ctx = canvas.getContext('2d');
 
+    // Sort data in descending order by percentage
+    const sortedData = [...data].sort((a, b) => {
+        const percentA = a.percentage || a.percent || 0;
+        const percentB = b.percentage || b.percent || 0;
+        return percentB - percentA;
+    });
+
     // Extract brand names and percentages
-    const brands = data.map(item => item.brand);
-    const percentages = data.map(item => item.percentage || item.percent);
+    const brands = sortedData.map(item => item.brand);
+    const percentages = sortedData.map(item => item.percentage || item.percent);
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -127,7 +139,7 @@ function renderShareOfVoiceChart(canvasId, data, category) {
             datasets: [{
                 label: 'Share of Voice (%)',
                 data: percentages,
-                backgroundColor: '#4ab4deff',
+                backgroundColor: '#48b7e3ff',
                 borderColor: '#3d9dc7',
                 borderWidth: 1
             }]
@@ -218,18 +230,26 @@ function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
         return;
     }
 
-    // Extract all unique keywords across all brands
+    // Extract all unique keywords across all brands and calculate totals
     const keywordSet = new Set();
+    const keywordTotals = {};
+
     Object.entries(data).forEach(([brand, brandData]) => {
-    if (Array.isArray(brandData)) {
+        if (Array.isArray(brandData)) {
             brandData.forEach(item => {
-                if (item.keyword) keywordSet.add(item.keyword);
+                if (item.keyword) {
+                    keywordSet.add(item.keyword);
+                    keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + (item.count || 0);
+                }
             });
         }
     });
 
+    // Sort keywords by total count in descending order
+    const keywords = Array.from(keywordSet).sort((a, b) => {
+        return (keywordTotals[b] || 0) - (keywordTotals[a] || 0);
+    });
 
-    const keywords = Array.from(keywordSet);
     const brands = Object.keys(data);
 
     if (keywords.length === 0 || brands.length === 0) {

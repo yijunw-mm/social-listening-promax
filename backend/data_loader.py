@@ -48,7 +48,7 @@ def load_groups_by_year(group_year: int) -> list:
     Return all group_ids where the group_id starts with the given year.
     """
     con,_ =load_chat_data()
-    
+
     query = """
     SELECT DISTINCT group_id
     FROM chat
@@ -57,6 +57,21 @@ def load_groups_by_year(group_year: int) -> list:
     """
     df= con.execute(query,[group_year]).fetch_df()
     return df["group_id"].tolist()
+
+
+def load_available_years() -> list:
+    """
+    Return all distinct years extracted from group_id (first 4 characters).
+    """
+    con, _ = load_chat_data()
+
+    query = """
+    SELECT DISTINCT CAST(SUBSTR(CAST(group_id AS VARCHAR), 1, 4) AS INT) AS year
+    FROM chat
+    ORDER BY year DESC
+    """
+    df = con.execute(query).fetch_df()
+    return df["year"].tolist()
 
 
 def query_chat(sql: str, params=None):
