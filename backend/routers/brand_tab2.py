@@ -173,56 +173,79 @@ def remove_keyword(brand_name:str, keyword:str):
         return {"message":f"keyword '{keyword}' not found in brand '{brand_name}'."}
     
 # ====== sentiment analysis ==========
-with open ("data/other_data/rule.json","r",encoding="utf-8") as f:
+with open ("data/other_data/sentiment_rule.json","r",encoding="utf-8") as f:
     CONFIG =json.load(f)['rules']
-analyzer = SentimentIntensityAnalyzer()
+sentiment_model = pipeline(
+    "sentiment-analysis",
+    model="./roberta-sentiment-finetuned",
+    tokenizer="./roberta-sentiment-finetuned",
+    top_k=1,
+    truncation=True  #cut more than 512
+)
 
-def custom_rules(text, base_score):
-    compound = base_score["compound"]
+def regex_override_label(text: str, base_sentiment: str) -> str:
+    """based on rule.json overwrite sentiment"""
     t = text.lower()
-    applied = None
-
     for rule in CONFIG:
         for pattern in rule["patterns"]:
-            if re.search(pattern, t,re.IGNORECASE):
-                compound = max(-1.0, min(1.0, compound + rule["adjustment"]))
-                applied =rule['name']
-                break  # stop at first match
-        if applied: 
-            break
+            if re.search(pattern, t, re.IGNORECASE):
+                return rule["sentiment"]
+    return base_sentiment  
 
-    if compound >= 0.05:
-        sentiment = "positive"
-    elif compound <= -0.05:
-        sentiment = "negative"
-    else:
-        sentiment = "neutral"
+# 3. safety check of total=0
+def safe_percent(v, total):
+    if total == 0:
+        return 0
+    return round(v / total * 100, 1)
 
-    return {
-        "compound": compound,
-        "sentiment": sentiment,
-        "rule":applied
-    }
+# 4. Transformer-based sentiment function
+def analyze_sentiment(texts,sentiment_model,regex_override_label):
+    sentiment_result = {"positive": 0, "neutral": 0, "negative": 0}
+    detailed_examples = []
+    if not texts:
+        return sentiment_result, detailed_examples
 
-def explain_sentiment(text, top_n=5):
-    """return the contribution"""
-    words = re.findall(r"\b\w+\b", text.lower())
-    scored_words = []
-    for w in words:
-        if w in analyzer.lexicon:  # there is a score in VADER dictionary
-            score = analyzer.lexicon[w]
-            scored_words.append((w, score))
+    # check existing cach
+    cached_results = {}
+    uncached_texts = []
+    for text in texts:
+        cached = get_cached_sentiment(text)
+        if cached:
+            cached_results[text]=cached
+        else:
+            uncached_texts.append(text)
+    preds=[]
+    if uncached_texts:
+        preds = sentiment_model(uncached_texts, batch_size=32)
+        for i,text in enumerate(uncached_texts):
+            pred = preds[i][0]
+            sentiment = pred["label"].lower()
+            score = round(pred["score"],3)
+            rule = None
+            print("model inference")
+            final_sentiment = regex_override_label(text,sentiment)
+            if final_sentiment !=sentiment:
+                rule = "regex overwrite"
+            save_sentiment_cache(text,final_sentiment,score,rule)
+            cached_results[text]={
+                "sentiment":final_sentiment,
+                "score":score,
+                "rule_applied":rule
+            }
+    for text in texts:
+        data = cached_results[text]
+        sentiment_result[data["sentiment"]] += 1
+        detailed_examples.append({
+            "text": text,
+            "sentiment_score": data["score"],
+            "sentiment": data["sentiment"],
+            "rule_applied":data["rule_applied"],
+        })
 
-    positives = sorted([x for x in scored_words if x[1] > 0], key=lambda x: -x[1])[:top_n]
-    negatives = sorted([x for x in scored_words if x[1] < 0], key=lambda x: x[1])[:top_n]
-
-    return {
-        "positives": positives,
-        "negatives": negatives
-    }
+    return sentiment_result, detailed_examples
 
 @router.get("/brand/sentiment-analysis")
-def brand_sentiment_analysis_vader(
+def brand_sentiment_analysis(
     brand_name: str,
     group_id: Optional[List[str]] = Query(None),
     group_year: Optional[int] =None,
@@ -270,31 +293,16 @@ def brand_sentiment_analysis_vader(
     df["clean_text"] = df["clean_text"].fillna("").astype(str)
 
     # 3. get the message containing brand name
-    matched_texts = [
-        text for text in df["clean_text"].dropna()
-        if re.search(rf"\b{re.escape(brand_name)}\b",text.lower())
-    ]
+    pattern = re.compile(rf"\b{re.escape(brand_name)}\b", re.IGNORECASE)
+    matched_texts = [text for text in df["clean_text"].dropna() if pattern.search(text)]
 
     # 4. compute sentiment analysis
     sentiment_result = {"positive": 0, "neutral": 0, "negative": 0}
     detailed_examples= []
 
-    for text in matched_texts:
-        base = analyzer.polarity_scores(text)
-        adjusted = custom_rules(text,base)
-        sentiment_result[adjusted["sentiment"]]+=1
-        
-        # 4.5 explain the contribution
-        explanation = explain_sentiment(text, top_n=5)
-        detailed_examples.append({
-            "text": text,
-            "sentiment_score": adjusted["compound"],
-            "sentiment": adjusted["sentiment"],
-            "rule_applied":adjusted["rule"],
-            "top_positive_words": explanation["positives"],
-            "top_negative_words": explanation["negatives"]
-        })
-
+    if not matched_texts:
+        return {"brand":brand_name,"total_mentions":0,"sentiment_percent":[],"sentiment_count":[],"examples":[]}
+    sentiment_result, detailed_examples = analyze_sentiment(matched_texts,sentiment_model=sentiment_model,regex_override_label=regex_override_label)
     # 5. output
     total = len(matched_texts)
     if total == 0:
@@ -307,11 +315,12 @@ def brand_sentiment_analysis_vader(
         }
 
     sentiment_percent_list = [{
-        "sentiment":k,"value": round(v / total * 100, 1)} for k, v in sentiment_result.items()
+        "sentiment":k,"value": safe_percent(v,total)} for k, v in sentiment_result.items()
     ]
     sentiment_count_list =[
         {"sentiment":k, "value":v} for k,v in sentiment_result.items()
     ]
+    examples = sorted(detailed_examples,key=lambda x: abs(x["sentiment_score"]), reverse=True)[:5]
     return {
         "brand": brand_name,
         "total_mentions": total,
@@ -319,6 +328,7 @@ def brand_sentiment_analysis_vader(
         "sentiment_count": sentiment_count_list,
         "examples":detailed_examples[:5]
     }
+
 
 #------consumer perception------
 

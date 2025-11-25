@@ -4,7 +4,7 @@ import pandas as pd
 from collections import Counter, defaultdict
 import json
 import re
-
+from backend.routers.brand_tab2 import custom_keywords_dict
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
 router = APIRouter()
@@ -13,7 +13,7 @@ router = APIRouter()
 brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 # temporary store user-add keywords
-custom_keywords_dict = {brand: set() for brand in brand_keyword_dict}
+#custom_keywords_dict = {brand: set() for brand in brand_keyword_dict}
 
 
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
