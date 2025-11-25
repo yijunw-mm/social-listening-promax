@@ -7,12 +7,9 @@ import pandas as pd
 from collections import Counter, defaultdict
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 from backend.data_loader import get_cached_sentiment,save_sentiment_cache,update_sentiment_cache
+from backend.shared_state import brand_keyword_dict
 
 router = APIRouter()
-
-# load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
-brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 
 
 # 1.load Transformer model

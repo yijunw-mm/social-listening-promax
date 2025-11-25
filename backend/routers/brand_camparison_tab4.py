@@ -10,6 +10,7 @@ from sentence_transformers import SentenceTransformer, util
 import spacy
 from sklearn.cluster import KMeans
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
+from backend.shared_state import brand_keyword_dict
 
 router = APIRouter()
 
@@ -21,7 +22,6 @@ for _,row in df_cat.iterrows():
     brand_category_map[brand].append(category)
 
 brand_list = list(brand_category_map.keys())
-brand_keyword_dict = (df_cat.groupby("brand")["keyword"].apply(list).to_dict())
 
 def _normalize_quotes(s: str) -> str:
     if not isinstance(s, str):

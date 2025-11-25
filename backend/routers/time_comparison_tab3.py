@@ -6,14 +6,9 @@ import json
 import re
 
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
+from backend.shared_state import brand_keyword_dict, custom_keywords_dict
 
 router = APIRouter()
-
-# load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
-brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
-# temporary store user-add keywords
-custom_keywords_dict = {brand: set() for brand in brand_keyword_dict}
 
 
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
@@ -238,7 +233,7 @@ def category_share_of_voice_compare(
         if granularity == "year":
             return df[df["year"] == time]
         elif granularity == "month":
-            y, m = divmod(time, 100)   # 202508 → 2025, 8
+            y, m = divmod(time, 100)   # 202508 → 2025, 08
             return df[(df["year"] == y) & (df["month"] == m)]
         elif granularity == "quarter":
             y, q = divmod(time, 10)    # 20252 → 2025, Q2

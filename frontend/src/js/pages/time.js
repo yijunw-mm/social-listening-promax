@@ -111,6 +111,8 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
         const data = await get_time_compare_frequency(params);
 
         console.log('Keyword comparison data:', data);
+        console.log('Time1 keywords:', data.compare?.[time1]);
+        console.log('Time2 keywords:', data.compare?.[time2]);
 
         if (data.error) {
             showNoDataMessage(canvasId, data.error);
@@ -139,7 +141,7 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
             time1: time1,
             time2: time2
         });
-
+ 
         const data = await get_time_compare_sentiment(params);
 
         console.log('Sentiment comparison data:', data);
@@ -550,7 +552,12 @@ export function initTimeKeywordManagement() {
     const addBtn = document.getElementById('timeAddKeywordBtn');
     const keywordInput = document.getElementById('timeKeywordInput');
 
-    if (!addBtn || !keywordInput) return;
+    console.log('initTimeKeywordManagement called', { addBtn, keywordInput });
+
+    if (!addBtn || !keywordInput) {
+        console.error('Time keyword management elements not found!');
+        return;
+    }
 
     // Handle add keyword
     addBtn.addEventListener('click', async () => {
