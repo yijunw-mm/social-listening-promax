@@ -15,7 +15,7 @@ from backend.data_loader import query_chat,load_default_groups,load_groups_by_ye
 router = APIRouter()
 
 # load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
+brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(lambda x:list(x)).to_dict()
 
 # temporary store user-add keywords

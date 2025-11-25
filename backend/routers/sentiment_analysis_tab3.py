@@ -11,7 +11,7 @@ from backend.data_loader import get_cached_sentiment,save_sentiment_cache,update
 router = APIRouter()
 
 # load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])  
+brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 
 

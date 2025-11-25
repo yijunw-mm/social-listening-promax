@@ -239,23 +239,24 @@ async function get_time_compare_share_of_voice(params = {}) {
     return await response.json();
 }
 
-//category keyword frequency (category-level data for Consumer Perception tab)
-async function get_category_keyword_frequency(params = {}) {
-    const url = buildURL('/category/keyword-frequency', params);
+//update sentiment for time comparison
+async function update_time_compare_sentiment(payload) {
+    const url = new URL(`${BASE_URL}/brand/time-compare/sentiment-update`);
 
     const response = await fetch(url, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
     });
-    if(!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
-    }
 
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
     return await response.json();
 }
 
-//brand comparison keyword frequncy (brand-level data)
-async function get_comparison_keyword_frequency(params = {}) {
+//category keyword frequency (category-level data for Consumer Perception tab)
+async function get_category_keyword_frequency(params = {}) {
     const url = buildURL('/category/keyword-frequency', params);
 
     const response = await fetch(url, {
@@ -335,9 +336,10 @@ export {
     get_consumer_perception,
     get_time_compare_frequency,
     get_time_compare_sentiment,
+    update_time_compare_sentiment,
     get_time_compare_share_of_voice,
     get_share_of_voice,
     get_category_keyword_frequency,
-    get_comparison_keyword_frequency,
+    get_category_keyword_frequency as get_comparison_keyword_frequency,
     get_comparison_consumer_perception
 };
