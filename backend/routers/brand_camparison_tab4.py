@@ -211,18 +211,6 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
     results = [{"word": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[1], reverse=True)]
     return results
 
-def extract_context(text, brand_list, window=10):
-    """
-    "I love the medela pump suction power" -> "love the medela pump suction power"
-    """
-    tokens = text.split()
-    text_lower = text.lower()
-    for i, tok in enumerate(tokens):
-        if any(b in tok.lower() for b in brand_list):
-            start = max(0, i - window)
-            end = min(len(tokens), i + window)
-            return " ".join(tokens[start:end])
-    return None
 
 @router.get("/category/consumer-perception")
 def category_consumer_perception(category_name:str,
@@ -282,13 +270,7 @@ def category_consumer_perception(category_name:str,
 
     if not relevant_texts:
         return {"category": category_name,"associated_words": []}
-    context_texts = []
-    for t in relevant_texts:
-        context = extract_context(t, brand_in_category, window=10)
-        if context:
-            context_texts.append(context)
-    if not context_texts:
-        return {"category": category_name,"associated_words": []}
+
     # Step 4️⃣ extract keyword
     associated_words = extract_clean_brand_keywords_auto(
         relevant_texts,
