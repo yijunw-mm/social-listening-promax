@@ -1,6 +1,7 @@
 import {
     get_time_compare_frequency,
     get_time_compare_sentiment,
+    update_time_compare_sentiment,
     get_time_compare_share_of_voice,
     add_brand_keyword,
     remove_brand_keyword
@@ -708,6 +709,99 @@ export function initSentimentComparisonExamplesToggle() {
     });
 }
 
+// Function to show sentiment edit dialog
+async function showSentimentEditDialog(example) {
+    console.log('showSentimentEditDialog called with:', example);
+    const currentSentiment = example.sentiment;
+    const currentScore = example.sentiment_score;
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
+    dialog.innerHTML = `
+        <div style="background: #2a3142; border: 1px solid #3d4456; border-radius: 8px; padding: 24px; max-width: 28rem; width: 100%; margin: 0 16px;">
+            <h3 style="color: white; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">Edit Sentiment</h3>
+
+            <div style="margin-bottom: 16px;">
+                <p style="color: #9ca3af; font-size: 0.875rem; margin-bottom: 8px;">"${example.text}"</p>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="color: #9ca3af; font-size: 0.875rem; margin-bottom: 8px; display: block;">Sentiment:</label>
+                <select id="sentimentSelect" style="width: 100%; background: #1f252f; color: white; padding: 8px; border-radius: 4px; border: 1px solid #3d4456;">
+                    <option value="positive" ${currentSentiment === 'positive' ? 'selected' : ''}>Positive</option>
+                    <option value="neutral" ${currentSentiment === 'neutral' ? 'selected' : ''}>Neutral</option>
+                    <option value="negative" ${currentSentiment === 'negative' ? 'selected' : ''}>Negative</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="color: #9ca3af; font-size: 0.875rem; margin-bottom: 8px; display: block;">Score (0-1):</label>
+                <input type="number" id="scoreInput" step="0.001" min="0" max="1"
+                    value="${currentScore}"
+                    style="width: 100%; background: #1f252f; color: white; padding: 8px; border-radius: 4px; border: 1px solid #3d4456;">
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button id="cancelBtn" style="padding: 8px 16px; background: #4b5563; color: white; border-radius: 4px; border: none; cursor: pointer;">
+                    Cancel
+                </button>
+                <button id="saveBtn" style="padding: 8px 16px; background: #2563eb; color: white; border-radius: 4px; border: none; cursor: pointer;">
+                    Save
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(dialog);
+    console.log('Dialog appended to body:', dialog);
+
+    const sentimentSelect = dialog.querySelector('#sentimentSelect');
+    const scoreInput = dialog.querySelector('#scoreInput');
+    const cancelBtn = dialog.querySelector('#cancelBtn');
+    const saveBtn = dialog.querySelector('#saveBtn');
+
+    console.log('Dialog elements found:', { sentimentSelect, scoreInput, cancelBtn, saveBtn });
+
+    cancelBtn.addEventListener('click', () => {
+        dialog.remove();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const newSentiment = sentimentSelect.value;
+        const newScore = parseFloat(scoreInput.value);
+
+        if (isNaN(newScore) || newScore < 0 || newScore > 1) {
+            alert('Please enter a valid score between 0 and 1');
+            return;
+        }
+
+        try {
+            const payload = {
+                text: example.text,
+                new_sentiment: newSentiment,
+                new_score: newScore,
+                new_rule: 'manual_overwrite'
+            };
+
+            await update_time_compare_sentiment(payload);
+
+            dialog.remove();
+
+            alert('Sentiment updated successfully! Click "Analyze" to see the updated chart.');
+        } catch (err) {
+            console.error('Error updating sentiment:', err);
+            alert('Failed to update sentiment. Please try again.');
+        }
+    });
+
+    // Close dialog when clicking outside
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            dialog.remove();
+        }
+    });
+}
+
 function displaySentimentComparisonExamples(compareData, time1, time2) {
     const container = document.getElementById('sentimentComparisonExamplesList');
     if (!container) return;
@@ -747,9 +841,14 @@ function displaySentimentComparisonExamples(compareData, time1, time2) {
                 <span class="font-semibold ${getSentimentTextColor(example.sentiment)} capitalize">
                     ${example.sentiment}
                 </span>
-                <span class="text-gray-400 text-sm">
-                    Score: ${example.sentiment_score.toFixed(3)}
-                </span>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400 text-sm">
+                        Score: ${example.sentiment_score.toFixed(3)}
+                    </span>
+                    <button class="edit-sentiment-btn text-blue-400 hover:text-blue-300 text-sm font-bold" title="Edit sentiment">
+                        ✎
+                    </button>
+                </div>
             </div>
             <p class="text-gray-300 text-sm leading-relaxed mb-2">
                 ${example.text}
@@ -760,6 +859,19 @@ function displaySentimentComparisonExamples(compareData, time1, time2) {
                 </div>
             ` : ''}
         `;
+
+        // Add click handler for edit button
+        const editBtn = card.querySelector('.edit-sentiment-btn');
+        editBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Edit button clicked', example);
+            try {
+                showSentimentEditDialog(example);
+            } catch (error) {
+                console.error('Error showing dialog:', error);
+            }
+        });
 
         return card;
     };

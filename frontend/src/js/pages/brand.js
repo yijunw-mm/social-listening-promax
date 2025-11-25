@@ -640,6 +640,8 @@ function isValidData(data) {
         data?.associated_words?.length > 0;
 }
 
+
+
 function showNoDataMessage(ctx, canvas, message) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = "16px sans-serif";
