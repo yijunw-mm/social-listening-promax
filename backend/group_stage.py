@@ -50,7 +50,7 @@ def get_stage(group_name: str, today: datetime = None):
 
 
 # -------- build df_groups from ingestion output --------
-def build_groups_from_messages(base_dir="data/processing_output/structure_chat",
+def build_groups_from_messages(base_dir="data/processing_output/clean_chat_df",
                                output_csv="data/processing_output/groups.csv"):
     """scan all parquet file in directory"""
     all_records=[]
