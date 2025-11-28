@@ -4,7 +4,7 @@ from backend.general_kw_analysis_tab1 import keyword_frequency, new_keyword_pred
 import pandas as pd
 import os,shutil
 from backend import model_loader
-from backend.data_loader import load_chat_data
+from backend.data_loader import load_chat_data,refresh_duckdb_cache
 from backend.ingestion_second import process_single_file
 from backend.cleaning import clean_dataframe
 from backend.group_stage import build_groups_from_messages
@@ -51,7 +51,8 @@ async def upload_file(file:UploadFile =File(...)):
     df_cleaned.to_parquet(f"{output_dir}/group_{group_id}.parquet",index=False)
     try:
         build_groups_from_messages()
-        print("group stage data updated")
+        refresh_duckdb_cache()
+        print("group stage data updated, refresh duckdb")
     except Exception as e:
         print("failed to update group stage")
 

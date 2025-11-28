@@ -8,7 +8,7 @@ DB_PATH= "data/chat_cache.duckdb"
 def load_chat_data():
     print("load data using duckdb...")
     con = duckdb.connect(DB_PATH)
-
+    con.execute("PRAGMA invalidate_cache;")
     con.execute("""
         CREATE OR REPLACE VIEW chat AS 
         SELECT 
@@ -34,6 +34,12 @@ def load_chat_data():
 
     return con, default_groups
 
+def refresh_duckdb_cache():
+    load_chat_data.cache_clear()
+    con = duckdb.connect(DB_PATH)
+    con.execute("PRAGMA invalidate_cache;")
+    con.close()
+    print("clear duckdb cache")
 
 
 
