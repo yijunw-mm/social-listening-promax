@@ -28,7 +28,7 @@ def read_zip_and_extract_txt(zip_path: str):
     Unzip file, extract the first txt/text file content, and return (group_name, chat_lines)
     """
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        # 支持 .txt / .text / .TXT
+        # support .txt / .text / .TXT
         txt_files = [name for name in zip_ref.namelist() if name.lower().endswith((".txt", ".text"))]
         if not txt_files:
             raise ValueError("Zip file does not contain any .txt or .text file.")
@@ -75,7 +75,7 @@ def parse_txt_lines(lines, group_name):
         match = pattern.match(line)
         if match:
             date_str, time_str, user, message = match.groups()
-            # 尝试两种日期格式（2025 vs 25）
+            # try two time format（2025 vs 25）
             dt = None
             for fmt in ("%d/%m/%Y, %H:%M", "%d/%m/%y, %H:%M"):
                 try:
@@ -99,13 +99,38 @@ def parse_txt_lines(lines, group_name):
             })
 
     return records
+def save_group_parquet(records, group_id, year):
+    """save each group_id parquet file"""
+    folder = f"data/processing_output/structure_chat/{year}"
+    os.makedirs(folder, exist_ok=True)
+    path = f"{folder}/group_{group_id}.parquet"
+    df = pd.DataFrame(records)
+    df.to_parquet(path, index=False)
+    print(f"Saved {path} ({len(df)} messages)")
+
+# -----------------------
+# proces single zip uploaded
+# -----------------------
+def process_single_file(zip_path:str):
+    """frontend upload file,
+    unzip, save as parquet file"""
+    group_name,chat_text = read_zip_and_extract_txt(zip_path)
+    records= parse_txt_lines(chat_text,group_name)
+    if not records:
+        raise ValueError("No Valid Message in uploaded file")
+    group_id = records[0]["group_id"]
+    group_year = normalize_group_id(group_name)[:4]
+    save_group_parquet(records,group_id,group_year)
+    df= pd.DataFrame(records)
+    return df,group_id,group_year
 
 # -----------------------------
 # 5️⃣ Process multiple ZIPs
 # -----------------------------
 def process_multiple_zips(folder_path: str) -> pd.DataFrame:
     """
-    Process all zip files in a folder, return combined DataFrame.
+    Process all zip files in a folder, return independent parquet file
+    based on group id.
     """
     all_records = []
 
@@ -115,31 +140,24 @@ def process_multiple_zips(folder_path: str) -> pd.DataFrame:
             try:
                 group_name, chat_text = read_zip_and_extract_txt(path)
                 records = parse_txt_lines(chat_text, group_name)
+                if not records:
+                    print(f"No valid messages found in {filename}")
+                    continue
+
+                group_id = records[0]["group_id"]
+                year = normalize_group_id(group_name)[:4]
+                save_group_parquet(records, group_id, year)
                 print(f"✅ Processed {filename}: {len(records)} messages")
-                if records:
-                    all_records.extend(records)
-                else:
-                    print(f"⚠️ No valid messages found in {filename}")
+
             except Exception as e:
-                print(f"❌ Error processing {filename}: {e}")
+                print(f"Error processing {filename}: {e}")
 
-    if not all_records:
-        print("⚠️ No messages found in any ZIP file.")
-        return pd.DataFrame(columns=["datetime", "user", "group_id", "text", "group_name"])
-
-    df = pd.DataFrame(all_records)
-    df["group_id"] = df["group_id"].astype(str)
-    return df
 
 # -----------------------------
 # 6️⃣ Main entry
 # -----------------------------
 if __name__ == "__main__":
-    folder = "data/chat_zip/2025"
-    df_chats = process_multiple_zips(folder)
-    print(f"📊 Total loaded messages: {len(df_chats)}")
+    folder = "data/chat_zip/2024"
+    process_multiple_zips(folder)
+    print("✅ All zip files process successfully")
 
-    output_path = "data/processing_output/structure_chat/2025/structured_chat.parquet"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    df_chats.to_parquet(output_path, index=False, encoding="utf-8-sig")
-    print(f"💾 Saved to {output_path}")

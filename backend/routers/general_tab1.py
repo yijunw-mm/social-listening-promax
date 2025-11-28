@@ -16,7 +16,6 @@ router = APIRouter()
 # load data
 df_kw = pd.read_csv("data/other_data/general_kw_list.csv")
 keyword_list = df_kw['keywords'].tolist()
-df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
 
 @router.get("/keyword-frequency")
 def keyword_frequency(group_id: Optional[List[str]] = Query(None),
@@ -25,7 +24,8 @@ def keyword_frequency(group_id: Optional[List[str]] = Query(None),
                       year: Optional[int] = None,
                       month: Optional[List[int]] = Query(None),
                       quarter: Optional[int] = None):
-    
+    df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
+
     #-- default group --
     if not group_id and not stage:
         group_id = load_default_groups()
@@ -303,6 +303,7 @@ def keyword_cooccurrence(
 
 @router.get("/chat-number")
 def get_groups():
+    df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
     groups = df_stage['group_id'].unique().tolist()
     result = [{'id':gid} for gid in groups]
     return{

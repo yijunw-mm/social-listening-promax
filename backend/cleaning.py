@@ -4,6 +4,8 @@ import emoji
 import pandas as pd
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize 
+import os 
+from tqdm import tqdm
 
 STOPWORDS = set(stopwords.words("english"))
 emoji_pattern = re.compile(
@@ -28,6 +30,7 @@ def clean_text(text:str,slang_dict:dict =None) ->str:
         return ''
     text = (text.replace('<Media omitted>', '')
             .replace('This message was deleted', '')
+            .replace('This message was edited', '')
             .replace('\n', ' ').strip())
     
     #remove website link, number, emoji
@@ -62,14 +65,45 @@ def clean_dataframe(df:pd.DataFrame,slang_dict=None) ->pd.DataFrame:
     df['month']=df['datetime'].dt.month
 
     return df
+def clean_all_years(input_base="data/processing_output/structure_chat",
+                    output_base="data/processing_output/clean_chat_df",
+                    slang_dict=None):
+    """
+    read every file and clean it
+    """
+    if not os.path.exists(input_base):
+        print(f"⚠️ Input base path not found: {input_base}")
+        return
+
+
+    for year_folder in os.listdir(input_base):
+        year_path = os.path.join(input_base, year_folder)
+        if not os.path.isdir(year_path):
+            continue
+
+        output_folder = os.path.join(output_base, year_folder)
+        os.makedirs(output_folder, exist_ok=True)
+
+        print(f"Cleaning group year: {year_folder}")
+        for file in tqdm(os.listdir(year_path), desc=f"Cleaning {year_folder}"):
+            
+            input_path = os.path.join(year_path, file)
+            output_path = os.path.join(output_folder, file)
+
+
+            try:
+                df = pd.read_parquet(input_path)
+                df_cleaned = clean_dataframe(df, slang_dict)
+
+                df_cleaned.to_parquet(output_path, index=False)
+                print(f"✅ Cleaned & saved: {output_path} ({len(df_cleaned)} rows)")
+
+
+            except Exception as e:
+                print(f"❌ Error cleaning {file}: {e}")
+
 
 if __name__=="__main__":
     df_slang=pd.read_csv("data/other_data/slang_to_formal.csv")
     slang_dict = dict(zip(df_slang['slang'].str.lower(),df_slang['formal'].str.lower()))
-    df = pd.read_parquet("data/processing_output/structure_chat/2024/structured_chat.parquet")
-
-    df_cleaned = clean_dataframe(df,slang_dict)
-    output_path = "data/processing_output/clean_chat_df/2024/cleaned_chat_dataframe_new.parquet"
-    df_cleaned.to_parquet(output_path,index=False)
-    print(f"✅save to {output_path}")
-    
+    clean_all_years()

@@ -6,7 +6,7 @@ import calendar
 from dateutil.relativedelta import relativedelta
 
 
-# -------- helpers: 群名 -> due_date + stage --------
+# -------- helpers: group name -> due_date + stage --------
 
 def parse_group_name(group_name: str):
     group_name=str(group_name)
@@ -50,19 +50,30 @@ def get_stage(group_name: str, today: datetime = None):
 
 
 # -------- build df_groups from ingestion output --------
-def build_groups_from_messages(messages_csv: str, output_csv: str, today: datetime = None):
-    df = pd.read_csv(messages_csv)
-    groups = []
-    for group_id,group_name in df[["group_id","group_name"]].drop_duplicates().values:
-        due_date = parse_group_name(group_name)
-        stage = get_stage(group_name, today)
-        groups.append({
-            "group_id": group_id,
-            "group_name": group_name,
-            "due_date": due_date.date() if due_date else None,
-            "stage": stage
-        })
-    df_groups = pd.DataFrame(groups)
+def build_groups_from_messages(base_dir="data/processing_output/structure_chat",
+                               output_csv="data/processing_output/groups.csv"):
+    """scan all parquet file in directory"""
+    all_records=[]
+    today = datetime.today()
+    for year_folder in sorted(os.listdir(base_dir)):
+        year_path = os.path.join(base_dir, year_folder)
+
+        for file in os.listdir(year_path):
+            if file.endswith(".parquet"):
+                file_path = os.path.join(year_path, file)
+                df = pd.read_parquet(file_path)
+
+            for group_id,group_name in df[["group_id","group_name"]].drop_duplicates().values:
+                due_date = parse_group_name(group_name)
+                stage = get_stage(group_name, today)
+                all_records.append({
+                    "group_id": group_id,
+                    "group_name": group_name,
+                    "due_date": due_date.date() if due_date else None,
+                    "stage": stage
+                })
+    df_groups = pd.DataFrame(all_records)
+    os.makedirs(os.path.dirname(output_csv),exist_ok=True)
     df_groups.to_csv(output_csv, index=False)
     print(f"✅ Saved {len(df_groups)} groups to {output_csv}")
     return df_groups
@@ -70,8 +81,6 @@ def build_groups_from_messages(messages_csv: str, output_csv: str, today: dateti
 
 # -------- test run --------
 if __name__ == "__main__":
-    input_path = "data/processing_output/structure_chat/2025/structured_chat.csv"
-    output_path = "data/processing_output/groups.csv"
-    build_groups_from_messages(input_path, output_path)
+    build_groups_from_messages()
 
 
