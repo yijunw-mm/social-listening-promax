@@ -108,7 +108,7 @@ def keyword_frequency(
     time1: int,
     time2: int,
     group_id: Optional[List[str]] = Query(None),
-    group_year: Optional[int] = None
+    group_year: Optional[List[int]] = Query(None)
 ):
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}

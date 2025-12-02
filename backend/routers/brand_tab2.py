@@ -72,7 +72,7 @@ def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
 def keyword_frequency(
     brand_name: str,
     group_id:Optional[List[str]]=Query(None),
-    group_year: Optional[int]=None,
+    group_year: Optional[List[int]]=Query(None),
     year: Optional[int] = None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None,
@@ -250,7 +250,7 @@ def analyze_sentiment(texts,sentiment_model,regex_override_label):
 def brand_sentiment_analysis(
     brand_name: str,
     group_id: Optional[List[str]] = Query(None),
-    group_year: Optional[int] =None,
+    group_year: Optional[List[int]] =Query(None),
     year: Optional[int] =None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
@@ -411,7 +411,7 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
 @router.get("/brand/consumer-perception")
 def consumer_perception(brand_name: str, 
                         group_id:Optional[List[str]]=Query(None),
-                        group_year:Optional[int]=None,
+                        group_year:Optional[List[int]]=Query(None),
                         year: Optional[int] = None,
                         month: Optional[int] = None,
                         quarter: Optional[int] = None,

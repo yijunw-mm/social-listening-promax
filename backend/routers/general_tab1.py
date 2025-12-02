@@ -19,7 +19,7 @@ keyword_list = df_kw['keywords'].tolist()
 
 @router.get("/keyword-frequency")
 def keyword_frequency(group_id: Optional[List[str]] = Query(None),
-                      group_year: Optional[int]=None,
+                      group_year: Optional[List[int]]=Query(None),
                       stage: Optional[str]=None,
                       year: Optional[int] = None,
                       month: Optional[List[int]] = Query(None),
@@ -80,7 +80,7 @@ def keyword_frequency(group_id: Optional[List[str]] = Query(None),
 
 @router.get("/new-keyword-prediction")
 def new_keyword_prediction(group_id: Optional[List[str]] = Query(None),
-                           group_year: Optional[int]=None,
+                           group_year: Optional[List[int]]=Query(None),
                            year: Optional[int]=None,
                            month: Optional[List[int]] = Query(None),
                            quarter: Optional[int] = None,
@@ -177,7 +177,7 @@ def new_keyword_prediction(group_id: Optional[List[str]] = Query(None),
 def keyword_cooccurrence(
     keyword: str,
     group_id: Optional[List[str]] = Query(None),
-    group_year: Optional[int] = None,
+    group_year: Optional[List[int]] = Query(None),
     year: Optional[int] = None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None,

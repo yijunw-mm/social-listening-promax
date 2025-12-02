@@ -68,7 +68,7 @@ def compare_keyword_frequency(
     time1: int,
     time2: int,
     group_id: Optional[List[str]] = Query(None),
-    group_year:Optional[int]=None,
+    group_year:Optional[List[int]]=Query(None),
     window_size: int =6,
     merge_overlap:bool=True
 ):
@@ -197,7 +197,7 @@ def category_share_of_voice_compare(
     time1: int,
     time2: int,
     group_id: Optional[List[str]]=Query(None),
-    group_year:Optional[int]=None
+    group_year:Optional[List[int]]=Query(None)
 ):
     #find the category
     df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
@@ -282,7 +282,7 @@ def compare_consumer_perception(
     time1: int,
     time2: int,
     group_id: Optional[List[str]] = Query(None),
-    group_year:Optional[int]=None,
+    group_year:Optional[List[int]]=Query(None),
     top_k: int = 20,
     window_size: int = 6,
     merge_overlap: bool = True

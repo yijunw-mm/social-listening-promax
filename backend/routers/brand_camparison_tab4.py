@@ -60,7 +60,7 @@ def count_kw(context_texts, keywords):
 @router.get("/category/share-of-voice")
 def get_share_of_voice(
     group_id:Optional[List[str]]=Query(None),
-    group_year:Optional[int]=None,
+    group_year:Optional[List[int]]=Query(None),
     year: Optional[int] =None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
@@ -216,7 +216,7 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
 def category_consumer_perception(category_name:str,
                                 top_k:int=20,
                                 group_id:Optional[List[str]]=Query(None),
-                                group_year:Optional[int]=None,
+                                group_year:Optional[List[int]]=Query(None),
                                 year: Optional[int] =None,
                                 month: Optional[List[int]] = Query(None),
                                 quarter: Optional[int] = None):
@@ -324,7 +324,7 @@ def extract_category_context(df, brand_list, window_size=6, merge_overlap=True):
 def category_keyword_frequency(
     category_name: str,
     group_id: Optional[List[str]] = Query(None),
-    group_year:Optional[int]=None,
+    group_year:Optional[List[int]]=Query(None),
     year: Optional[int] = None,
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None,

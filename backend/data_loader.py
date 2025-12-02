@@ -1,5 +1,6 @@
 import pandas as pd
 import duckdb, threading
+from typing import Union, List
 from functools import lru_cache
 
 #DB_PATH= ":memory:"
@@ -60,14 +61,18 @@ def load_default_groups():
     return default_groups
 
 
-def load_groups_by_year(group_year: int) -> list:
+def load_groups_by_year(group_year: Union[int,List[int]]) -> list:
     """
     Return all group_ids where the group_id starts with the given year.
     """
     df,_ =load_chat_data()
 
     df['group_year'] = df['group_id'].astype(str).str[:4].astype(int)
-    result = sorted(df[df["group_year"]==group_year]["group_id"].unique().tolist())
+    if isinstance(group_year,int):
+        years = [group_year]
+    else:
+        years = group_year
+    result = sorted(df[df["group_year"].isin(years)]["group_id"].unique().tolist())
     return result
 
 
