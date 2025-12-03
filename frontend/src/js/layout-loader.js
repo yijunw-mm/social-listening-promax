@@ -265,14 +265,12 @@ function fixNavigationLinks() {
 
         if (page === 'brand') {
             // Brand tab goes to index.html in the frontend folder
-            link.href = 'index.html';
+            link.href = 'brand.html';
         } else {
             // Other tabs go to their respective files in the frontend folder
             const filename = {
-                'time': 'tab2_time.html',
-                'sov': 'tab3_sov.html',
-                'general': 'tab4_general.html',
-                'cp': 'tab5_cp.html'
+                'category': 'category.html',
+                'general': 'general.html',
             }[page];
 
             link.href = filename;

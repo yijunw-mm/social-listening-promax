@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Category Comparison | Social Listening Dashboard</title>
+
+    <link href="dist/output.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+
+<body>
+
+    <!-- Load Shared Layout -->
+    <div id="layout"></div>
+
+    <script type="module">
+        import { loadLayout } from './src/js/layout-loader.js';
+        import { loadComparisonKeywordFrequencyData, loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/category.js';
+
+        async function loadPage() {
+            // Wait for Chart.js to be available
+            while (typeof Chart === 'undefined') {
+                console.log('Waiting for Chart.js to load...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            // Load layout
+            await loadLayout('category');
+
+            // Insert this page's content
+            document.getElementById("page-content").innerHTML = `
+                <h2 class="text-white text-2xl font-semibold mb-6">Category Comparison</h2>
+
+                <!-- Category Selector Section -->
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
+                    <div class="text-white font-semibold text-lg mb-4">
+                        Select Category
+                    </div>
+                    <div class="flex gap-4 items-end">
+                        <div class="flex-1">
+                            <label class="block text-gray-400 text-sm mb-2">Category</label>
+                            <select id="categorySelector" class="w-full bg-[#1e2433] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-blue-500">
+                                <option value="diaper">Diaper</option>
+                                <option value="formula milk">Formula Milk</option>
+                                <option value="weaning">Weaning</option>
+                                <option value="hospital">Hospital</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Keyword Frequency Chart -->
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-[#3d4456] pb-2">
+                        <div class="text-white font-semibold text-lg">
+                            Keyword Frequency
+                        </div>
+                        <button id="analyzeKeywordFrequencyBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-4 py-1 rounded text-sm font-semibold transition">
+                            Analyze
+                        </button>
+                    </div>
+                    <div class="relative" style="min-height: 400px; position: relative;">
+                        <canvas id="comparisonKeywordChart"></canvas>
+                        <div id="loadingOverlay-comparisonKeywordChart" class="chart-loading-overlay">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consumer Perception Chart -->
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-[#3d4456] pb-2">
+                        <div class="text-white font-semibold text-lg">
+                            Consumer Perception
+                        </div>
+                        <button id="analyzeConsumerPerceptionBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-4 py-1 rounded text-sm font-semibold transition">
+                            Analyze
+                        </button>
+                    </div>
+                    <div class="relative" style="min-height: 400px; position: relative;">
+                        <canvas id="consumerPerceptionChart"></canvas>
+                        <div id="loadingOverlay-consumerPerceptionChart" class="chart-loading-overlay">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+
+                    <!-- Word Filtering Section -->
+                    <div class="mt-6 pt-4 border-t border-[#3d4456]">
+                        <h4 class="text-white font-semibold mb-3">Filter Words</h4>
+                        <div class="flex gap-2 mb-3">
+                            <input
+                                type="text"
+                                id="perceptionCategoryWordFilterInput"
+                                placeholder="Enter word(s) to hide (comma or space separated)..."
+                                class="flex-1 bg-[#252d3d] text-white px-3 py-2 rounded border border-[#3d4456] focus:outline-none focus:border-purple-500"
+                            />
+                            <button
+                                id="removePerceptionWordBtn"
+                                class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-medium">
+                                Hide
+                            </button>
+                        </div>
+                        <div class="mt-3">
+                            <p class="text-gray-400 text-sm mb-2">Hidden Words:</p>
+                            <div id="perceptionCategoryHiddenWordsList" class="flex flex-wrap gap-2">
+                                <span class="text-gray-500 text-sm">No hidden words</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+
+                    .chart-loading-overlay {
+                        display: none;
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(31, 37, 47, 0.95);
+                        z-index: 10;
+                        border-radius: 8px;
+                        align-items: center;
+                        justify-content: center;
+                        flex-direction: column;
+                    }
+
+                    .chart-loading-overlay.active {
+                        display: flex;
+                    }
+
+                    .loading-spinner {
+                        border: 3px solid #3d4456;
+                        border-top: 3px solid #4ab4deff;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        animation: spin 1s linear infinite;
+                    }
+                </style>
+            `;
+
+            // Add event listeners for individual analyze buttons
+            document.getElementById('analyzeKeywordFrequencyBtn').addEventListener('click', async () => {
+                const category = document.getElementById('categorySelector').value;
+                console.log('Analyzing Keyword Frequency for category:', category);
+                await loadComparisonKeywordFrequencyData(category);
+            });
+
+            document.getElementById('analyzeConsumerPerceptionBtn').addEventListener('click', async () => {
+                const category = document.getElementById('categorySelector').value;
+                console.log('Analyzing Consumer Perception for category:', category);
+                await loadConsumerPerceptionData(category);
+            });
+
+            // Initialize word filter for consumer perception
+            initCategoryPerceptionWordFilter();
+
+            // Listen for group chat changes (when checkboxes change in sidebar)
+            // Use flag to prevent duplicate listener registration
+            if (!window.categoryPageGroupChatHandlerAttached) {
+                window.addEventListener('groupChatChanged', async () => {
+                    const category = document.getElementById('categorySelector').value;
+                    console.log('Group chat selection changed, reloading data for category:', category);
+                    // Load sequentially to avoid race conditions
+                    await loadComparisonKeywordFrequencyData(category);
+                    await loadConsumerPerceptionData(category);
+                    console.log('All category data loaded');
+                });
+                window.categoryPageGroupChatHandlerAttached = true;
+            }
+
+            // Load default category on page load sequentially
+            const defaultCategory = 'diaper';
+            console.log('Loading default category data sequentially...');
+            await loadComparisonKeywordFrequencyData(defaultCategory);
+            await loadConsumerPerceptionData(defaultCategory);
+            console.log('Default category data loaded');
+        }
+
+        loadPage();
+    </script>
+
+    <script type="module" src="./src/js/pages/category.js"></script>
+
+</body>
+
+</html>
