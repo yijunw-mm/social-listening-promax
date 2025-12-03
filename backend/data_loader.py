@@ -31,7 +31,8 @@ def load_chat_data():
     print("load data using duckdb...")
     con = get_read_connection()
 
-    df = con.execute(""" 
+    con.execute(""" 
+        CREATE OR REPLACE VIEW chat AS
         SELECT 
             *,
             CAST(year AS INTEGER) AS year, 
@@ -39,9 +40,10 @@ def load_chat_data():
             CAST(quarter AS INTEGER) AS quarter,
             CAST(group_id AS VARCHAR) AS group_id
         FROM read_parquet('data/processing_output/clean_chat_df/*/*.parquet');
-    """).fetchdf()
+    """)
 
     # extract all group_id for default setting
+    df = con.execute("SELECT DISTINCT group_id FROM chat ORDER BY group_id;").fetchdf()
     group_ids = sorted(df['group_id'].unique().tolist())
 
     # latest 12 group as default（order by group_id）
@@ -99,6 +101,18 @@ def query_chat(sql: str, params=None):
 def refresh_duckdb_cache():
     """clear in-memory cache"""
     load_chat_data.cache_clear()
+    con = get_write_connection()
+    con.execute(""" 
+        CREATE OR REPLACE VIEW chat AS
+        SELECT 
+            *,
+            CAST(year AS INTEGER) AS year, 
+            CAST(month AS INTEGER) AS month,
+            CAST(quarter AS INTEGER) AS quarter,
+            CAST(group_id AS VARCHAR) AS group_id
+        FROM read_parquet('data/processing_output/clean_chat_df/*/*.parquet');
+    """)
+    con.close()
     print("clear cache, will reload next call")
 
 # === sentiment cache layer ===

@@ -37,10 +37,11 @@ def keyword_frequency(granularity: Literal["year", "month", "quarter"],
     df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
 
     #-- default group --
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year) 
     if not group_id and not stage:
         group_id = load_default_groups()
-    if group_year and not group_id:
-        group_id = load_groups_by_year(group_year)    
+       
     #-- base query --
     query = """
         SELECT clean_text, year, month, quarter
