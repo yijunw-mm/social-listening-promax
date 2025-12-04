@@ -319,6 +319,25 @@ function renderSentimentComparisonChart(canvasId, data, time1, time2) {
         return;
     }
 
+    // Display total mentions
+    const time1Total = time1Data.total_mentions || 0;
+    const time2Total = time2Data.total_mentions || 0;
+    const totalMentionsDiv = document.getElementById('sentimentTotalMentions');
+    if (totalMentionsDiv) {
+        totalMentionsDiv.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time1} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time1Total.toLocaleString()}</div>
+                </div>
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time2} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time2Total.toLocaleString()}</div>
+                </div>
+            </div>
+        `;
+    }
+
     // Extract sentiment percentages for both time periods
     const time1Percent = time1Data.sentiment_percent?.reduce((acc, item) => {
         acc[item.sentiment] = item.value;
@@ -431,6 +450,25 @@ function renderShareOfVoiceComparisonChart(canvasId, data, time1, time2) {
     if (compare[time1]?.error || compare[time2]?.error) {
         showNoDataMessage(canvasId, compare[time1]?.error || compare[time2]?.error);
         return;
+    }
+
+    // Display total mentions
+    const time1Total = compare[time1]?.total_mentions || 0;
+    const time2Total = compare[time2]?.total_mentions || 0;
+    const totalMentionsDiv = document.getElementById('shareOfVoiceTotalMentions');
+    if (totalMentionsDiv) {
+        totalMentionsDiv.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time1} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time1Total.toLocaleString()}</div>
+                </div>
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time2} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time2Total.toLocaleString()}</div>
+                </div>
+            </div>
+        `;
     }
 
     // Combine all brands from both periods

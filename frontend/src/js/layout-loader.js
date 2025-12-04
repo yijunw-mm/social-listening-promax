@@ -39,6 +39,11 @@ async function loadYears() {
 
             localStorage.setItem('selectedYears', JSON.stringify(selected));
 
+            // If years are selected, clear group chat selections
+            if (selected.length > 0) {
+                clearGroupChatSelections();
+            }
+
             // Notify other components
             window.dispatchEvent(new Event('yearChanged'));
         });
@@ -86,6 +91,12 @@ async function loadGroupChats() {
             ).map(cb => cb.value);
 
             localStorage.setItem('selectedGroupChats', JSON.stringify(selected));
+
+            // If group chats are selected, clear year selections
+            if (selected.length > 0) {
+                clearYearSelections();
+            }
+
             window.dispatchEvent(new Event('groupChatChanged')); // Notify other scripts
         });
 
@@ -94,6 +105,26 @@ async function loadGroupChats() {
     }
 }
 
+
+// Helper function to clear year selections
+function clearYearSelections() {
+    // Uncheck all year checkboxes
+    document.querySelectorAll('.year-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    // Clear from localStorage
+    localStorage.setItem('selectedYears', JSON.stringify([]));
+}
+
+// Helper function to clear group chat selections
+function clearGroupChatSelections() {
+    // Uncheck all group chat checkboxes
+    document.querySelectorAll('.group-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    // Clear from localStorage
+    localStorage.setItem('selectedGroupChats', JSON.stringify([]));
+}
 
 // Helper function to get selected group chat (can be called from any page)
 window.getSelectedGroupChats = function () {

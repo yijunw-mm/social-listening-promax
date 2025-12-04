@@ -43,21 +43,35 @@ const categoryOptions = [
 ];
 
 // Export loading functions for each chart
-export async function loadComparisonKeywordFrequencyData(category) {
-    console.log('Loading comparison keyword frequency data:', { category });
-    await loadComparisonKeywordFrequency(category);
+export async function loadComparisonKeywordFrequencyData(category, granularity, time1, time2) {
+    console.log('Loading comparison keyword frequency data:', { category, granularity, time1, time2 });
+    await loadComparisonKeywordFrequency(category, granularity, time1, time2);
 }
 
 
 
-async function loadComparisonKeywordFrequency(category) {
+async function loadComparisonKeywordFrequency(category, granularity, time1, time2) {
     const canvasId = 'comparisonKeywordChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        const params = getFilterParams({ category_name: category });
+        // Parse time inputs to integers
+        const time1Int = parseInt(time1);
+        const time2Int = parseInt(time2);
+
+        if (isNaN(time1Int) || isNaN(time2Int)) {
+            showNoDataMessage(canvasId, 'Invalid time period format');
+            return;
+        }
+
+        const params = getFilterParams({
+            category_name: category,
+            granularity: granularity,
+            time1: time1Int,
+            time2: time2Int
+        });
 
         const data = await get_comparison_keyword_frequency(params);
 
@@ -253,19 +267,33 @@ function showNoDataMessage(canvasId, message) {
 }
 
 // Export loading function for consumer perception
-export async function loadConsumerPerceptionData(category) {
-    console.log('Loading consumer perception data:', { category });
-    await loadConsumerPerception(category);
+export async function loadConsumerPerceptionData(category, granularity, time1, time2) {
+    console.log('Loading consumer perception data:', { category, granularity, time1, time2 });
+    await loadConsumerPerception(category, granularity, time1, time2);
 }
 
-async function loadConsumerPerception(category) {
+async function loadConsumerPerception(category, granularity, time1, time2) {
     const canvasId = 'consumerPerceptionChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        const params = getFilterParams({ category_name: category });
+        // Parse time inputs to integers
+        const time1Int = parseInt(time1);
+        const time2Int = parseInt(time2);
+
+        if (isNaN(time1Int) || isNaN(time2Int)) {
+            showNoDataMessage(canvasId, 'Invalid time period format');
+            return;
+        }
+
+        const params = getFilterParams({
+            category_name: category,
+            granularity: granularity,
+            time1: time1Int,
+            time2: time2Int
+        });
 
         const data = await get_comparison_consumer_perception(params);
 
@@ -427,10 +455,13 @@ export function initCategoryPerceptionWordFilter() {
         // Clear input
         filterInput.value = '';
 
-        // Re-render chart with filtered data
+        // Re-render chart with filtered data - get current time parameters
         const categorySelector = document.getElementById('categorySelector');
         const category = categorySelector ? categorySelector.value : 'diaper';
-        loadConsumerPerception(category);
+        const granularity = document.getElementById('perceptionGranularitySelector')?.value || 'year';
+        const time1 = document.getElementById('perceptionTime1Input')?.value || '2024';
+        const time2 = document.getElementById('perceptionTime2Input')?.value || '2025';
+        loadConsumerPerception(category, granularity, time1, time2);
 
         // Update hidden words display
         displayCategoryHiddenWords();
@@ -473,10 +504,13 @@ function restoreCategoryWord(word) {
     // Remove from hidden words set
     hiddenCategoryPerceptionWords.delete(word.toLowerCase());
 
-    // Re-render chart
+    // Re-render chart - get current time parameters
     const categorySelector = document.getElementById('categorySelector');
     const category = categorySelector ? categorySelector.value : 'diaper';
-    loadConsumerPerception(category);
+    const granularity = document.getElementById('perceptionGranularitySelector')?.value || 'year';
+    const time1 = document.getElementById('perceptionTime1Input')?.value || '2024';
+    const time2 = document.getElementById('perceptionTime2Input')?.value || '2025';
+    loadConsumerPerception(category, granularity, time1, time2);
 
     // Update display
     displayCategoryHiddenWords();
