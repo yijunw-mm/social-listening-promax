@@ -12,8 +12,8 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 let chartInstances = {};
 
 // Helper function to get filter parameters (years and group_id)
-function getFilterParams() {
-    const params = {};
+function getFilterParams(additionalParams = {}) {
+    const params = { ...additionalParams };
     const selectedYears = window.getSelectedYears ? window.getSelectedYears() : [];
     const groupChat = window.getSelectedGroupChats ? window.getSelectedGroupChats() : [];
 
@@ -32,26 +32,23 @@ function getFilterParams() {
 }
 
 // Export loading functions for each chart
-export async function loadKeywordFrequencyData() {
-    console.log('Loading keyword frequency data');
-    await loadKeywordFrequency();
+export async function loadKeywordFrequencyData(granularity, time1, time2) {
+    console.log('Loading keyword frequency data:', { granularity, time1, time2 });
+    await loadKeywordFrequency(granularity, time1, time2);
 }
 
-export async function loadNewKeywordsData() {
-    console.log('Loading new keywords prediction data');
-    await loadNewKeywords();
+export async function loadNewKeywordsData(granularity, time1, time2) {
+    console.log('Loading new keywords prediction data:', { granularity, time1, time2 });
+    await loadNewKeywords(granularity, time1, time2);
 }
 
 // Load all general charts
 export async function loadAllGeneralData() {
-    // Load sequentially to avoid race conditions
-    console.log('Loading all general data sequentially...');
-    await loadKeywordFrequency();
-    // Note: loadNewKeywords() is only called when the Analyze button is clicked
-    console.log('All general data loaded');
+    // No auto-loading - user must click Analyze button
+    console.log('loadAllGeneralData called - user should click Analyze button to load charts');
 }
 
-async function loadKeywordFrequency() {
+async function loadKeywordFrequency(granularity, time1, time2) {
     const canvasId = 'keywordFrequencyChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
@@ -64,31 +61,34 @@ async function loadKeywordFrequency() {
     }
 
     try {
-        const params = getFilterParams();
+        // Parse time inputs to integers
+        const time1Int = parseInt(time1);
+        const time2Int = parseInt(time2);
+
+        if (isNaN(time1Int) || isNaN(time2Int)) {
+            showNoDataMessage(canvasId, 'Invalid time period format');
+            return;
+        }
+
+        const params = getFilterParams({
+            granularity: granularity,
+            time1: time1Int,
+            time2: time2Int
+        });
 
         console.log('Fetching keyword frequency with params:', params);
         const data = await keywordFrequency(params);
 
         console.log('Raw API data:', data);
-        console.log('Data type:', typeof data);
-        console.log('Is array?', Array.isArray(data));
 
-        // (ensure it's always an array)
-        const keywordsData = Array.isArray(data)
-            ? data
-            : Array.isArray(data.keywords) ? data.keywords : [];
-
-        console.log('Processed keywordsData:', keywordsData);
-        console.log('keywordsData length:', keywordsData.length);
-
-        if (keywordsData.length === 0) {
-            console.log('No data, showing message');
+        // Backend returns { granularity: "...", compare: { "time1": [...], "time2": [...] } }
+        if (!data || !data.compare) {
             showNoDataMessage(canvasId, 'No keyword data available');
             return;
         }
 
-        console.log('Rendering chart with', keywordsData.length, 'keywords');
-        renderKeywordFrequencyChart(canvasId, keywordsData);
+        // Render comparison chart with both time periods
+        renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2);
         console.log('Chart rendered successfully');
 
     } catch (err) {
@@ -102,25 +102,39 @@ async function loadKeywordFrequency() {
 }
 
 
-async function loadNewKeywords() {
+async function loadNewKeywords(granularity, time1, time2) {
     const canvasId = 'newKeywordsChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
     if (loadingOverlay) loadingOverlay.classList.add('active');
 
     try {
-        const params = getFilterParams();
+        // Parse time inputs to integers
+        const time1Int = parseInt(time1);
+        const time2Int = parseInt(time2);
+
+        if (isNaN(time1Int) || isNaN(time2Int)) {
+            showNoDataMessage(canvasId, 'Invalid time period format');
+            return;
+        }
+
+        const params = getFilterParams({
+            granularity: granularity,
+            time1: time1Int,
+            time2: time2Int
+        });
 
         const data = await new_keywords(params);
 
         console.log('New keywords data:', data);
 
-        if (data.error || !Array.isArray(data) || data.length === 0) {
-            showNoDataMessage(canvasId, data.error || 'No data available');
+        // Backend returns { granularity: "...", compare: { "time1": [...], "time2": [...] } }
+        if (!data || !data.compare) {
+            showNoDataMessage(canvasId, 'No data available');
             return;
         }
 
-        renderNewKeywordsChart(canvasId, data);
+        renderNewKeywordsComparisonChart(canvasId, data, time1, time2);
     } catch (err) {
         console.error('Error loading new keywords:', err);
         showNoDataMessage(canvasId, 'Error loading data');
@@ -130,30 +144,74 @@ async function loadNewKeywords() {
 }
 
 // Chart Rendering Functions
-function renderKeywordFrequencyChart(canvasId, data) {
-    console.log('renderKeywordFrequencyChart called with', data.length, 'items');
+function renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2) {
+    console.log('renderKeywordFrequencyComparisonChart called');
     const canvas = document.getElementById(canvasId);
     if (!canvas) {
         console.error('Canvas not found:', canvasId);
         return;
     }
 
-    console.log('Canvas found, getting context...');
     const ctx = canvas.getContext('2d');
 
-    // Sort data in descending order by count and limit to top of your choice
-    const sortedData = [...data].sort((a, b) => b.count - a.count).slice(0, 25);
+    // Extract data for both time periods
+    const time1Data = data.compare[time1] || [];
+    const time2Data = data.compare[time2] || [];
 
-    // Extract keywords and counts
-    const keywords = sortedData.map(item => item.keyword);
-    const counts = sortedData.map(item => item.count);
+    // Get all unique keywords from both periods
+    const keywordSet = new Set();
+    const keywordTotals = {};
 
-    console.log('Keywords:', keywords);
-    console.log('Counts:', counts);
+    time1Data.forEach(item => {
+        if (item.keyword) {
+            keywordSet.add(item.keyword);
+            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + (item.count || 0);
+        }
+    });
 
-    // Populate the keyword selector with ALL keywords (not just top 20)
-    const allKeywords = [...data].sort((a, b) => b.count - a.count).map(item => item.keyword);
+    time2Data.forEach(item => {
+        if (item.keyword) {
+            keywordSet.add(item.keyword);
+            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + (item.count || 0);
+        }
+    });
+
+    // Sort keywords by total count and take top 25
+    const keywords = Array.from(keywordSet)
+        .sort((a, b) => (keywordTotals[b] || 0) - (keywordTotals[a] || 0))
+        .slice(0, 25);
+
+    if (keywords.length === 0) {
+        showNoDataMessage(canvasId, 'No keyword data available');
+        return;
+    }
+
+    // Populate the keyword selector with ALL keywords
+    const allKeywords = Array.from(keywordSet)
+        .sort((a, b) => (keywordTotals[b] || 0) - (keywordTotals[a] || 0));
     populateKeywordSelector(allKeywords);
+
+    // Create lookup maps
+    const time1Map = Object.fromEntries(time1Data.map(item => [item.keyword, item.count]));
+    const time2Map = Object.fromEntries(time2Data.map(item => [item.keyword, item.count]));
+
+    // Create datasets
+    const datasets = [
+        {
+            label: `${time1}`,
+            data: keywords.map(kw => time1Map[kw] || 0),
+            backgroundColor: '#4ab4deff',
+            borderColor: '#3d9dc7',
+            borderWidth: 1
+        },
+        {
+            label: `${time2}`,
+            data: keywords.map(kw => time2Map[kw] || 0),
+            backgroundColor: '#a78bfa',
+            borderColor: '#8b5cf6',
+            borderWidth: 1
+        }
+    ];
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -161,13 +219,7 @@ function renderKeywordFrequencyChart(canvasId, data) {
         type: 'bar',
         data: {
             labels: keywords,
-            datasets: [{
-                label: 'Keyword Frequency',
-                data: counts,
-                backgroundColor: '#48b7e3ff',
-                borderColor: '#3d9dc7',
-                borderWidth: 1
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
@@ -194,17 +246,15 @@ function renderKeywordFrequencyChart(canvasId, data) {
                 },
                 datalabels: {
                     anchor: 'end',
-                    align: 'end',
-                    rotation: -45,
+                    align: 'top',
                     color: '#9ca3af',
                     font: {
                         weight: 'bold',
-                        size: 10
+                        size: 9
                     },
                     formatter: function(value) {
                         return value > 0 ? value : '';
-                    },
-                    offset: 4
+                    }
                 }
             },
             scales: {
@@ -243,22 +293,71 @@ function renderKeywordFrequencyChart(canvasId, data) {
     });
 }
 
-function renderNewKeywordsChart(canvasId, data) {
+function renderNewKeywordsComparisonChart(canvasId, data, time1, time2) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    // Sort data in descending order by score
-    const sortedData = [...data].sort((a, b) => {
-        const scoreA = a.score || a.prediction || a.count || 1;
-        const scoreB = b.score || b.prediction || b.count || 1;
-        return scoreB - scoreA;
+    // Extract data for both time periods
+    const time1Data = data.compare[time1] || [];
+    const time2Data = data.compare[time2] || [];
+
+    // Get all unique keywords from both periods
+    const keywordSet = new Set();
+    const keywordTotals = {};
+
+    time1Data.forEach(item => {
+        if (item.keyword) {
+            keywordSet.add(item.keyword);
+            const score = item.score || item.prediction || item.count || 0;
+            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + score;
+        }
     });
 
-    // Extract keywords and predictions/scores
-    const keywords = sortedData.map(item => item.keyword || item.word);
-    const scores = sortedData.map(item => item.score || item.prediction || item.count || 1);
+    time2Data.forEach(item => {
+        if (item.keyword) {
+            keywordSet.add(item.keyword);
+            const score = item.score || item.prediction || item.count || 0;
+            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + score;
+        }
+    });
+
+    // Sort keywords by total score and take top 20
+    const keywords = Array.from(keywordSet)
+        .sort((a, b) => (keywordTotals[b] || 0) - (keywordTotals[a] || 0))
+        .slice(0, 20);
+
+    if (keywords.length === 0) {
+        showNoDataMessage(canvasId, 'No new keywords data available');
+        return;
+    }
+
+    // Create lookup maps
+    const time1Map = Object.fromEntries(
+        time1Data.map(item => [item.keyword, item.score || item.prediction || item.count || 0])
+    );
+    const time2Map = Object.fromEntries(
+        time2Data.map(item => [item.keyword, item.score || item.prediction || item.count || 0])
+    );
+
+    // Create datasets
+    const datasets = [
+        {
+            label: `${time1}`,
+            data: keywords.map(kw => time1Map[kw] || 0),
+            backgroundColor: '#4ab4deff',
+            borderColor: '#3d9dc7',
+            borderWidth: 1
+        },
+        {
+            label: `${time2}`,
+            data: keywords.map(kw => time2Map[kw] || 0),
+            backgroundColor: '#a78bfa',
+            borderColor: '#8b5cf6',
+            borderWidth: 1
+        }
+    ];
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -266,13 +365,7 @@ function renderNewKeywordsChart(canvasId, data) {
         type: 'bar',
         data: {
             labels: keywords,
-            datasets: [{
-                label: 'Predicted New Keywords',
-                data: scores,
-                backgroundColor: '#48b7e3ff',
-                borderColor: '#3b82f6',
-                borderWidth: 1
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
@@ -302,7 +395,7 @@ function renderNewKeywordsChart(canvasId, data) {
                     color: '#9ca3af',
                     font: {
                         weight: 'bold',
-                        size: 11
+                        size: 9
                     },
                     formatter: function(value) {
                         return value > 0 ? value.toFixed(2) : '';
@@ -376,7 +469,11 @@ export function initKeywordCooccurrence() {
             return;
         }
 
-        await loadCooccurrenceData(selectedKeyword);
+        const granularity = document.getElementById('cooccurrenceGranularitySelector').value;
+        const time1 = document.getElementById('cooccurrenceTime1Input').value.trim();
+        const time2 = document.getElementById('cooccurrenceTime2Input').value.trim();
+
+        await loadCooccurrenceData(selectedKeyword, granularity, time1, time2);
     });
 }
 
@@ -396,11 +493,14 @@ export function populateKeywordSelector(keywords) {
     });
 }
 
-async function loadCooccurrenceData(keyword) {
+async function loadCooccurrenceData(keyword, granularity, time1, time2) {
     const loadingDiv = document.getElementById('cooccurrenceLoading');
     const tableContainer = document.getElementById('cooccurrenceTableContainer');
     const noDataDiv = document.getElementById('cooccurrenceNoData');
-    const tableBody = document.getElementById('cooccurrenceTableBody');
+    const tableBody1 = document.getElementById('cooccurrenceTableBody1');
+    const tableBody2 = document.getElementById('cooccurrenceTableBody2');
+    const time1Header = document.getElementById('cooccurrenceTime1Header');
+    const time2Header = document.getElementById('cooccurrenceTime2Header');
 
     // Show loading, hide others
     if (loadingDiv) loadingDiv.classList.remove('hidden');
@@ -408,38 +508,77 @@ async function loadCooccurrenceData(keyword) {
     if (noDataDiv) noDataDiv.classList.add('hidden');
 
     try {
-        const params = getFilterParams();
-        params.keyword = keyword;
-        params.count_threshold = 20;
-        params.top_n = 20;
+        const params = getFilterParams({
+            keyword: keyword,
+            granularity: granularity,
+            time1: time1,
+            time2: time2,
+            top_n: 20
+        });
 
         console.log('Fetching co-occurrence data with params:', params);
         const response = await keyword_cooccurrence(params);
 
         console.log('Co-occurrence data received:', response);
 
-        // Extract top_pairs from the response object
-        const data = response.top_pairs || [];
+        // Extract data for both time periods from compare object
+        const compare = response.compare || {};
+        let data1 = compare[time1]?.top_pairs || [];
+        let data2 = compare[time2]?.top_pairs || [];
 
-        if (!Array.isArray(data) || data.length === 0) {
+        if ((!Array.isArray(data1) || data1.length === 0) && (!Array.isArray(data2) || data2.length === 0)) {
             if (loadingDiv) loadingDiv.classList.add('hidden');
             if (noDataDiv) noDataDiv.classList.remove('hidden');
             return;
         }
 
-        // Populate table
-        tableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b border-[#3d4456] hover:bg-[#252d3d]';
-            tr.innerHTML = `
-                <td class="px-4 py-3">${row.word1 || ''}</td>
-                <td class="px-4 py-3">${row.word2 || ''}</td>
-                <td class="px-4 py-3">${row.count || 0}</td>
-                <td class="px-4 py-3">${typeof row.pmi === 'number' ? row.pmi.toFixed(1) : 'N/A'}</td>
-            `;
-            tableBody.appendChild(tr);
-        });
+        // Sort by count in descending order
+        data1 = [...data1].sort((a, b) => (b.count || 0) - (a.count || 0));
+        data2 = [...data2].sort((a, b) => (b.count || 0) - (a.count || 0));
+
+        // Update headers
+        if (time1Header) time1Header.textContent = time1;
+        if (time2Header) time2Header.textContent = time2;
+
+        // Populate table 1
+        if (tableBody1) {
+            tableBody1.innerHTML = '';
+            if (data1.length === 0) {
+                tableBody1.innerHTML = '<tr><td colspan="4" class="px-3 py-3 text-center text-gray-400">No data available</td></tr>';
+            } else {
+                data1.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-[#3d4456] hover:bg-[#252d3d]';
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${row.word1 || ''}</td>
+                        <td class="px-3 py-2">${row.word2 || ''}</td>
+                        <td class="px-3 py-2">${row.count || 0}</td>
+                        <td class="px-3 py-2">${typeof row.pmi === 'number' ? row.pmi.toFixed(1) : 'N/A'}</td>
+                    `;
+                    tableBody1.appendChild(tr);
+                });
+            }
+        }
+
+        // Populate table 2
+        if (tableBody2) {
+            tableBody2.innerHTML = '';
+            if (data2.length === 0) {
+                tableBody2.innerHTML = '<tr><td colspan="4" class="px-3 py-3 text-center text-gray-400">No data available</td></tr>';
+            } else {
+                data2.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-[#3d4456] hover:bg-[#252d3d]';
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${row.word1 || ''}</td>
+                        <td class="px-3 py-2">${row.word2 || ''}</td>
+                        <td class="px-3 py-2">${row.count || 0}</td>
+                        <td class="px-3 py-2">${typeof row.pmi === 'number' ? row.pmi.toFixed(1) : 'N/A'}</td>
+                    `;
+                    tableBody2.appendChild(tr);
+                });
+            }
+        }
 
         // Show table, hide loading
         if (loadingDiv) loadingDiv.classList.add('hidden');

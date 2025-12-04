@@ -256,7 +256,7 @@ def keyword_cooccurrence(
             return pd.DataFrame(columns=["word1", "word2", "count", "pmi"])
         # === 5. calculte pmi ===
         result = []
-        total = total_pairs  
+        total = total_pairs
         for (w1, w2), c in cooc.items():
             p_w1 = word_freq[w1] / total
             p_w2 = word_freq[w2] / total
@@ -272,7 +272,7 @@ def keyword_cooccurrence(
             return pd.DataFrame(columns=["word1", "word2", "count", "pmi"])
 
         df_result = pd.DataFrame(result, columns=["word1", "word2", "count", "pmi"])
-        
+
         # === 6. threshold and filter ===
         df_result['score'] = df_result.apply(lambda r: r['pmi']*math.log2(r['count']+1),axis=1)
         return df_result.sort_values("score", ascending=False).head(top_n)

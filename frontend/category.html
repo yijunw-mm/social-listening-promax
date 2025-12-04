@@ -63,6 +63,29 @@
                             Analyze
                         </button>
                     </div>
+
+                    <!-- Time Controls for Keyword Frequency -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="text-gray-300 block mb-2">Granularity:</label>
+                            <select id="keywordGranularitySelector" class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]">
+                                <option value="year">Year</option>
+                                <option value="month">Month</option>
+                                <option value="quarter">Quarter</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                            <input type="text" id="keywordTime1Input" placeholder="e.g., 2024 or 202401"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2024">
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                            <input type="text" id="keywordTime2Input" placeholder="e.g., 2025 or 202501"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2025">
+                        </div>
+                    </div>
+
                     <div class="relative" style="min-height: 400px; position: relative;">
                         <canvas id="comparisonKeywordChart"></canvas>
                         <div id="loadingOverlay-comparisonKeywordChart" class="chart-loading-overlay">
@@ -81,6 +104,29 @@
                             Analyze
                         </button>
                     </div>
+
+                    <!-- Time Controls for Consumer Perception -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="text-gray-300 block mb-2">Granularity:</label>
+                            <select id="perceptionGranularitySelector" class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]">
+                                <option value="year">Year</option>
+                                <option value="month">Month</option>
+                                <option value="quarter">Quarter</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                            <input type="text" id="perceptionTime1Input" placeholder="e.g., 2024 or 202401"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2024">
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                            <input type="text" id="perceptionTime2Input" placeholder="e.g., 2025 or 202501"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2025">
+                        </div>
+                    </div>
+
                     <div class="relative" style="min-height: 400px; position: relative;">
                         <canvas id="consumerPerceptionChart"></canvas>
                         <div id="loadingOverlay-consumerPerceptionChart" class="chart-loading-overlay">
@@ -152,39 +198,34 @@
             // Add event listeners for individual analyze buttons
             document.getElementById('analyzeKeywordFrequencyBtn').addEventListener('click', async () => {
                 const category = document.getElementById('categorySelector').value;
-                console.log('Analyzing Keyword Frequency for category:', category);
-                await loadComparisonKeywordFrequencyData(category);
+                const granularity = document.getElementById('keywordGranularitySelector').value;
+                const time1 = document.getElementById('keywordTime1Input').value.trim();
+                const time2 = document.getElementById('keywordTime2Input').value.trim();
+                console.log('Analyzing Keyword Frequency for category:', { category, granularity, time1, time2 });
+                await loadComparisonKeywordFrequencyData(category, granularity, time1, time2);
             });
 
             document.getElementById('analyzeConsumerPerceptionBtn').addEventListener('click', async () => {
                 const category = document.getElementById('categorySelector').value;
-                console.log('Analyzing Consumer Perception for category:', category);
-                await loadConsumerPerceptionData(category);
+                const granularity = document.getElementById('perceptionGranularitySelector').value;
+                const time1 = document.getElementById('perceptionTime1Input').value.trim();
+                const time2 = document.getElementById('perceptionTime2Input').value.trim();
+                console.log('Analyzing Consumer Perception for category:', { category, granularity, time1, time2 });
+                await loadConsumerPerceptionData(category, granularity, time1, time2);
             });
 
             // Initialize word filter for consumer perception
             initCategoryPerceptionWordFilter();
 
-            // Listen for group chat changes (when checkboxes change in sidebar)
+            // Listen for group chat changes - note: charts won't auto-reload since they require user-configured parameters
+            // User needs to click Analyze button after changing group chat selection
             // Use flag to prevent duplicate listener registration
             if (!window.categoryPageGroupChatHandlerAttached) {
-                window.addEventListener('groupChatChanged', async () => {
-                    const category = document.getElementById('categorySelector').value;
-                    console.log('Group chat selection changed, reloading data for category:', category);
-                    // Load sequentially to avoid race conditions
-                    await loadComparisonKeywordFrequencyData(category);
-                    await loadConsumerPerceptionData(category);
-                    console.log('All category data loaded');
+                window.addEventListener('groupChatChanged', function() {
+                    console.log('Group chat selection changed. Click Analyze to see updated results.');
                 });
                 window.categoryPageGroupChatHandlerAttached = true;
             }
-
-            // Load default category on page load sequentially
-            const defaultCategory = 'diaper';
-            console.log('Loading default category data sequentially...');
-            await loadComparisonKeywordFrequencyData(defaultCategory);
-            await loadConsumerPerceptionData(defaultCategory);
-            console.log('Default category data loaded');
         }
 
         loadPage();

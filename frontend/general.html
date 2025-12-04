@@ -58,6 +58,29 @@
                                 Analyze
                             </button>
                         </div>
+
+                        <!-- Time Controls for Keyword Frequency -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="text-gray-300 block mb-2">Granularity:</label>
+                                <select id="keywordFreqGranularitySelector" class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]">
+                                    <option value="year">Year</option>
+                                    <option value="month">Month</option>
+                                    <option value="quarter">Quarter</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                                <input type="text" id="keywordFreqTime1Input" placeholder="e.g., 2024 or 202401"
+                                    class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2024">
+                            </div>
+                            <div>
+                                <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                                <input type="text" id="keywordFreqTime2Input" placeholder="e.g., 2025 or 202501"
+                                    class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2025">
+                            </div>
+                        </div>
+
                         <div class="relative" style="min-height: 400px; position: relative;">
                             <canvas id="keywordFrequencyChart"></canvas>
                             <div id="loadingOverlay-keywordFrequencyChart" class="chart-loading-overlay">
@@ -68,36 +91,76 @@
                         <!-- Keyword Co-occurrence Section -->
                         <div class="mt-6 pt-4 border-t border-[#3d4456]">
                             <h3 class="text-white font-semibold text-md mb-3">Keyword Context Analysis</h3>
-                            <div class="flex gap-3 mb-4">
-                                <div class="flex-1">
+
+                            <!-- Time Controls -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                                <div>
+                                    <label class="text-gray-300 text-sm mb-1 block">Granularity:</label>
+                                    <select id="cooccurrenceGranularitySelector" class="w-full bg-[#1e2433] text-white p-2 rounded border border-[#3d4456]">
+                                        <option value="year">Year</option>
+                                        <option value="month">Month</option>
+                                        <option value="quarter">Quarter</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 text-sm mb-1 block">Time Period 1:</label>
+                                    <input type="text" id="cooccurrenceTime1Input" placeholder="e.g., 2024"
+                                        class="w-full bg-[#1e2433] text-white p-2 rounded border border-[#3d4456]" value="2024">
+                                </div>
+                                <div>
+                                    <label class="text-gray-300 text-sm mb-1 block">Time Period 2:</label>
+                                    <input type="text" id="cooccurrenceTime2Input" placeholder="e.g., 2025"
+                                        class="w-full bg-[#1e2433] text-white p-2 rounded border border-[#3d4456]" value="2025">
+                                </div>
+                                <div>
                                     <label class="text-gray-300 text-sm mb-1 block">Select Keyword:</label>
-                                    <select id="keywordCooccurrenceSelector" class="w-full bg-[#1f252f] text-white p-2 rounded border border-[#3d4456] focus:outline-none focus:border-purple-500">
+                                    <select id="keywordCooccurrenceSelector" class="w-full bg-[#1e2433] text-white p-2 rounded border border-[#3d4456] focus:outline-none focus:border-purple-500">
                                         <option value="">-- Select a keyword --</option>
                                     </select>
                                 </div>
-                                <div class="flex items-end">
-                                    <button id="analyzeCooccurrenceBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-6 py-2 rounded font-medium">
-                                        Analyze
-                                    </button>
-                                </div>
                             </div>
 
-                            <!-- Co-occurrence Results Table -->
-                            <div id="cooccurrenceTableContainer" class="hidden">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-sm text-left">
-                                        <thead class="text-xs text-gray-400 uppercase bg-[#1f252f]">
-                                            <tr>
-                                                <th class="px-4 py-3">Word 1</th>
-                                                <th class="px-4 py-3">Word 2</th>
-                                                <th class="px-4 py-3">Count</th>
-                                                <th class="px-4 py-3">PMI</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="cooccurrenceTableBody" class="text-gray-300">
-                                            <!-- Table rows will be populated here -->
-                                        </tbody>
-                                    </table>
+                            <button id="analyzeCooccurrenceBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-6 py-2 rounded font-medium mb-4">
+                                Analyze
+                            </button>
+
+                            <!-- Co-occurrence Results Tables (Side by Side) -->
+                            <div id="cooccurrenceTableContainer" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 id="cooccurrenceTime1Header" class="text-white font-semibold mb-2">2024</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm text-left">
+                                            <thead class="text-xs text-gray-400 uppercase bg-[#1f252f]">
+                                                <tr>
+                                                    <th class="px-3 py-2">Word 1</th>
+                                                    <th class="px-3 py-2">Word 2</th>
+                                                    <th class="px-3 py-2">Count</th>
+                                                    <th class="px-3 py-2">PMI</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cooccurrenceTableBody1" class="text-gray-300">
+                                                <!-- Table rows will be populated here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 id="cooccurrenceTime2Header" class="text-white font-semibold mb-2">2025</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm text-left">
+                                            <thead class="text-xs text-gray-400 uppercase bg-[#1f252f]">
+                                                <tr>
+                                                    <th class="px-3 py-2">Word 1</th>
+                                                    <th class="px-3 py-2">Word 2</th>
+                                                    <th class="px-3 py-2">Count</th>
+                                                    <th class="px-3 py-2">PMI</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cooccurrenceTableBody2" class="text-gray-300">
+                                                <!-- Table rows will be populated here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
 
@@ -124,6 +187,29 @@
                                 Analyze
                             </button>
                         </div>
+
+                        <!-- Time Controls for New Keywords Prediction -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="text-gray-300 block mb-2">Granularity:</label>
+                                <select id="newKeywordsGranularitySelector" class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]">
+                                    <option value="year">Year</option>
+                                    <option value="month">Month</option>
+                                    <option value="quarter">Quarter</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                                <input type="text" id="newKeywordsTime1Input" placeholder="e.g., 2024 or 202401"
+                                    class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2024">
+                            </div>
+                            <div>
+                                <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                                <input type="text" id="newKeywordsTime2Input" placeholder="e.g., 2025 or 202501"
+                                    class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2025">
+                            </div>
+                        </div>
+
                         <div class="relative" style="min-height: 400px; position: relative;">
                             <canvas id="newKeywordsChart"></canvas>
                             <div id="loadingOverlay-newKeywordsChart" class="chart-loading-overlay">
@@ -170,30 +256,33 @@
 
                 // Add event listeners for individual analyze buttons
                 document.getElementById('analyzeKeywordFreqBtn').addEventListener('click', async () => {
-                    console.log('Analyzing Keyword Frequency...');
-                    await loadKeywordFrequencyData();
+                    const granularity = document.getElementById('keywordFreqGranularitySelector').value;
+                    const time1 = document.getElementById('keywordFreqTime1Input').value.trim();
+                    const time2 = document.getElementById('keywordFreqTime2Input').value.trim();
+                    console.log('Analyzing Keyword Frequency...', { granularity, time1, time2 });
+                    await loadKeywordFrequencyData(granularity, time1, time2);
                 });
 
                 document.getElementById('analyzeNewKeywordsBtn').addEventListener('click', async () => {
-                    console.log('Analyzing New Keywords Prediction...');
-                    await loadNewKeywordsData();
+                    const granularity = document.getElementById('newKeywordsGranularitySelector').value;
+                    const time1 = document.getElementById('newKeywordsTime1Input').value.trim();
+                    const time2 = document.getElementById('newKeywordsTime2Input').value.trim();
+                    console.log('Analyzing New Keywords Prediction...', { granularity, time1, time2 });
+                    await loadNewKeywordsData(granularity, time1, time2);
                 });
 
                 // Initialize keyword co-occurrence functionality
                 initKeywordCooccurrence();
 
-                // Listen for group chat changes (when checkboxes change in sidebar)
+                // Listen for group chat changes - note: charts won't auto-reload since they require user-configured parameters
+                // User needs to click Analyze button after changing group chat selection
                 // Use flag to prevent duplicate listener registration
                 if (!window.generalPageGroupChatHandlerAttached) {
                     window.addEventListener('groupChatChanged', () => {
-                        console.log('Group chat selection changed, reloading data...');
-                        loadAllGeneralData();
+                        console.log('Group chat selection changed. Click Analyze to see updated results.');
                     });
                     window.generalPageGroupChatHandlerAttached = true;
                 }
-
-                // Load data on page load
-                await loadAllGeneralData();
             } catch (error) {
                 console.error('Error loading page:', error);
                 document.getElementById("page-content").innerHTML = `<div style="color: white; padding: 20px;">Error: ${error.message}</div>`;
