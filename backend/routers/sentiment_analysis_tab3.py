@@ -1,6 +1,6 @@
 # -------sentiment analysis (DistilBERT version) ------
 from transformers import pipeline
-import re, json
+import re, json,duckdb
 from fastapi import APIRouter, Query, Body
 from typing import List, Optional,Literal
 import pandas as pd
@@ -9,9 +9,18 @@ from backend.data_loader import query_chat, load_default_groups,load_groups_by_y
 from backend.data_loader import get_cached_sentiment,save_sentiment_cache,update_sentiment_cache
 
 router = APIRouter()
-
+DB_PATH="data/chat_cache.duckdb"
+con= duckdb.connect(DB_PATH)
 # load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
+#brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
+query = """
+SELECT b.brand_name AS brand, k.keyword AS keyword
+FROM brand_keywords k 
+JOIN brands b on k.brand_id=b.brand_id
+"""
+brand_keyword_df = con.execute(query).fetchdf()
+con.close()
+
 brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 
 

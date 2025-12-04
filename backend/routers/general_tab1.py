@@ -7,15 +7,19 @@ import sys
 sys.path.append("..")
 from backend.model_loader import kw_model,encoder
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import random,math, re,itertools
+import random,math, re,itertools,duckdb
 from backend.data_loader import load_groups_by_year, load_default_groups, query_chat, load_available_years
 from itertools import combinations
 
 router = APIRouter()
+DB_PATH="data/chat_cache.duckdb"
+con= duckdb.connect(DB_PATH)
+df_kw = con.execute("SELECT gen_keyword FROM general_keywords").fetchdf()
 
-# load data
-df_kw = pd.read_csv("data/other_data/general_kw_list.csv")
-keyword_list = df_kw['keywords'].tolist()
+#df_kw = pd.read_csv("data/other_data/general_kw_list.csv")
+keyword_list = df_kw['gen_keyword'].tolist()
+con.close()
+
 #define filter function
 def filter_df(df: pd.DataFrame, time: int, granularity):
         if granularity == "year":
@@ -34,7 +38,10 @@ def keyword_frequency(granularity: Literal["year", "month", "quarter"],
                       group_id: Optional[List[str]] = Query(None),
                       group_year: Optional[List[int]]=Query(None),
                       stage: Optional[str]=None):
-    df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
+    #df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
+    con= duckdb.connect(DB_PATH)
+    df_stage = con.execute("SELECT group_id FROM groups").fetchdf()
+    con.close()
 
     #-- default group --
     if group_year and not group_id:
@@ -296,7 +303,10 @@ def keyword_cooccurrence(
 
 @router.get("/chat-number")
 def get_groups():
-    df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
+    #df_stage= pd.read_csv("data/processing_output/groups.csv",dtype={"group_id":str})
+    con= duckdb.connect(DB_PATH)
+    df_stage = con.execute("SELECT group_id FROM groups").fetchdf()
+    con.close()
     groups = df_stage['group_id'].unique().tolist()
     result = [{'id':gid} for gid in groups]
     return{

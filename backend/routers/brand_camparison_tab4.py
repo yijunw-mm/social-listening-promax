@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from collections import defaultdict,Counter
 from typing import List, Optional,Literal
 import pandas as pd
-import re
+import re, duckdb
 from sklearn.feature_extraction.text import CountVectorizer
 from keybert import KeyBERT
 from backend.model_loader import kw_model,encoder
@@ -12,8 +12,22 @@ from sklearn.cluster import KMeans
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
 router = APIRouter()
+DB_PATH="data/chat_cache.duckdb"
+con= duckdb.connect(DB_PATH)
 
-df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
+#df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
+query = """
+SELECT 
+    b.brand_name AS brand,
+    c.category_name AS category,
+    k.keyword AS keyword
+FROM brand_keywords k
+JOIN brands b ON k.brand_id = b.brand_id
+JOIN categories c ON b.category_id = c.category_id
+"""
+df_cat = con.execute(query).fetchdf()
+con.close()
+
 brand_category_map = defaultdict(list)
 for _,row in df_cat.iterrows():
     brand = str(row["brand"]).strip().lower()
