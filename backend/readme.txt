@@ -70,3 +70,39 @@ share of voice and co-occurence
 http://127.0.0.1:8000/category/consumer-perception?category_name=diaper
 
 category name is ["formula milk", "diaper","hospital","weaning"]
+
+# Admain Feature
+--add brand--
+http://127.0.0.1:8000/admin/brand
+method:POST
+parameter: brand_name, category_name, token
+
+-- add brand keyword --
+http://127.0.0.1:8000/admin/keyword
+method:POST
+parameter: brand_name, keyword, token 
+
+-- add category --
+http://127.0.0.1:8000/admin/category 
+method:POST 
+parameter: category_name, token 
+
+-- add slang/variant
+http://127.0.0.1:8000/admin/slang
+mehtod:POST 
+parameter: slang, formal, token 
+
+-- add general keyword
+http://127.0.0.1:8000/admin/general-keyword
+method: POST 
+parameter: general_kw, token 
+
+-- remove brand --
+http://127.0.0.1:8000/admin/brand
+method:DELETE 
+parameter:brand_name, token 
+
+--remove brand keyword --
+http://127.0.0.1:8000/admin/keyword 
+mehtod:DELETE 
+parameter: brand_name, keyword,token 
