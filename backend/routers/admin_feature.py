@@ -136,17 +136,32 @@ def add_keyword(req: KeywordListRequest, token: str = Header(...)):
         if not brand_id:
             raise HTTPException(status_code=404, detail=f"Brand '{req.brand_name}' not found. Please create it first.")
 
-        inserted =0
+        added_count, existed_count =0,0
         for kw in req.keywords:
-            con.execute("""
+            exists = con.execute("""
+                SELECT COUNT(*) FROM brand_keywords
+                WHERE brand_id= ? AND keyword=?
+            """, [brand_id[0], kw.lower().strip()]).fetchone()[0]
+            if exists:
+                existed_count+=1
+            else:
+                con.execute("""
                 INSERT INTO brand_keywords (brand_id, keyword)
                 VALUES (?, ?)
                 ON CONFLICT (brand_id, keyword) DO NOTHING;
             """, [brand_id[0], kw.lower().strip()])
-            inserted+=1
+                added_count+=1
 
         con.close()
-        return {"message": f"✅ Keyword '{inserted}' added to brand '{req.brand_name}'."}
+        if added_count == 0 and existed_count >0:
+            msg = f"✅All {existed_count} keywords exist"
+        elif added_count >0 and existed_count >0:
+            msg = f"✅Add {added_count} keywords, {existed_count} keyword exist"
+        elif added_count>0:
+            msg = f"✅Add {added_count} keywords to brand '{req.brand_name}'."
+        else:
+            msg = f"Not Valid"
+        return {"message": msg}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
@@ -211,16 +226,26 @@ def upsert_general(req: GeneralkwRequest, token: str = Header(...)):
 
     con = duckdb.connect(DB_PATH)
     try:
-        inserted = 0
+        added_count, existed_count =0,0
         for kw in req.general_kw:
-            con.execute("""
-                INSERT INTO general_keywords (gen_keyword)
-                VALUES (?)
-                ON CONFLICT (gen_keyword) DO NOTHING;
-            """, [kw.lower().strip()])
-            inserted+=1
+            exists = con.execute(
+                    "SELECT COUNT(*) FROM general_keywords WHERE gen_keyword = ?",
+                    [kw.lower().strip()]).fetchone()[0]
+            if exists:
+                existed_count+=1
+            else:
+                con.execute("INSERT INTO general_keywords (gen_keyword) VALUES (?)",[kw.lower().strip()])
+                added_count+=1
         con.close()
-        return {"message": f"✅ general keyword '{inserted}' added or already exists"}
+        if added_count == 0 and existed_count >0:
+            msg = f"✅All {existed_count} keywords exist"
+        elif added_count >0 and existed_count >0:
+            msg = f"✅Add {added_count} keywords, {existed_count} keyword exist"
+        elif added_count>0:
+            msg = f"✅Add {added_count} keywords"
+        else:
+            msg = f"Not Valid"
+        return {"message": msg}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
