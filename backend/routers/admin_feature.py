@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Header
 import duckdb
-
+from typing import List
 
 # ========================================
 # ⚙️  CONFIG
 # ========================================
 DB_PATH = "data/chat_cache.duckdb"
-ADMIN_TOKEN = "supersecret"
+ADMIN_TOKEN = "Pregnancy2parenthood!"
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -116,7 +116,7 @@ def add_brand(brand_name: str, category_name: str, token: str = Header(...)):
 # 🧾2.ADD BRAND KW
 # ========================================
 @router.post("/keyword")
-def add_keyword(brand_name: str, keyword: str, token: str = Header(...)):
+def add_keyword(brand_name: str, keyword: List[str], token: str = Header(...)):
     verify_admin_token(token)
     ensure_tables()
 
@@ -132,13 +132,14 @@ def add_keyword(brand_name: str, keyword: str, token: str = Header(...)):
         if not brand_id:
             raise HTTPException(status_code=404, detail=f"Brand '{brand_name}' not found. Please create it first.")
 
-
-        con.execute("""
-            INSERT INTO brand_keywords (brand_id, keyword)
-            VALUES (?, ?)
-            ON CONFLICT (brand_id, keyword) DO NOTHING;
-        """, [brand_id[0], keyword.lower().strip()])
-
+        inserted =0
+        for kw in keyword:
+            con.execute("""
+                INSERT INTO brand_keywords (brand_id, keyword)
+                VALUES (?, ?)
+                ON CONFLICT (brand_id, keyword) DO NOTHING;
+            """, [brand_id[0], keyword.lower().strip()])
+            inserted+=1
 
         con.close()
         return {"message": f"✅ Keyword '{keyword}' added to brand '{brand_name}'."}
@@ -197,17 +198,20 @@ def upsert_slang(slang: str, formal: str, token: str = Header(...)):
 # 💬 5. UPDATE/INSERT GENERAL KW
 # ========================================
 @router.post("/general-keyword")
-def upsert_general(general_kw: str, token: str = Header(...)):
+def upsert_general(general_kw: List[str], token: str = Header(...)):
     verify_admin_token(token)
     ensure_tables()
 
     con = duckdb.connect(DB_PATH)
     try:
-        con.execute("""
-            INSERT INTO general_keywords (gen_keyword)
-            VALUES (?, ?)
-            ON CONFLICT (gen_keyword) DO NOTHING;
-        """, [general_kw.lower().strip()])
+        inserted = 0
+        for kw in general_kw:
+            con.execute("""
+                INSERT INTO general_keywords (gen_keyword)
+                VALUES (?, ?)
+                ON CONFLICT (gen_keyword) DO NOTHING;
+            """, [general_kw.lower().strip()])
+            inserted+=1
         con.close()
         return {"message": f"✅ general keyword '{general_kw}' added or already exists"}
     except Exception as e:
@@ -222,6 +226,13 @@ def delete_brand(brand_name: str, token: str = Header(...)):
     verify_admin_token(token)
     con = duckdb.connect(DB_PATH)
     try:
+        brand_id = con.execute(
+            "SELECT brand_id FROM brands WHERE brand_name = ?", [brand_name.lower().strip()]
+        ).fetchone()
+        if not brand_id:
+            con.close()
+            raise HTTPException(status_code=404, detail= f"Brand Name {brand_name} Not Found")
+            
         con.execute("DELETE FROM brands WHERE brand_name = ?", [brand_name.lower().strip()])
         con.close()
         return {"message": f"🗑️ Brand '{brand_name}' deleted."}
@@ -239,8 +250,7 @@ def delete_keyword(brand_name: str, keyword: str, token: str = Header(...)):
             "SELECT brand_id FROM brands WHERE brand_name = ?", [brand_name.lower().strip()]
         ).fetchone()
         if not brand_id:
-            raise HTTPException(status_code=404, detail="Brand not found.")
-
+            raise HTTPException(status_code=404, detail="Brand Name {brand_name} Not Found.")
 
         con.execute("""
             DELETE FROM brand_keywords
