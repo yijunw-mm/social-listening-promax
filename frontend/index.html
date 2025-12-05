@@ -5,11 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Social Listening Dashboard</title>
     <script>
-        // Redirect to brand.html immediately
-        window.location.href = 'brand.html';
+        // Check if user is authenticated
+        if (localStorage.getItem('authToken')) {
+            // Redirect to brand.html if authenticated
+            window.location.href = 'brand.html';
+        } else {
+            // Redirect to login if not authenticated
+            window.location.href = 'login.html';
+        }
     </script>
 </head>
 <body>
-    <p>Redirecting to dashboard...</p>
+    <p>Redirecting...</p>
 </body>
 </html>

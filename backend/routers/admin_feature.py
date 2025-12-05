@@ -204,6 +204,7 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
 
     con = duckdb.connect(DB_PATH)
     try:
+<<<<<<< Updated upstream
         inserted = 0
         for kw in general_kw:
             con.execute("""
@@ -212,6 +213,13 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
                 ON CONFLICT (gen_keyword) DO NOTHING;
             """, [general_kw.lower().strip()])
             inserted+=1
+=======
+        con.execute("""
+            INSERT INTO general_keywords (gen_keyword)
+            VALUES (?)
+            ON CONFLICT (gen_keyword) DO NOTHING;
+        """, [general_kw.lower().strip()])
+>>>>>>> Stashed changes
         con.close()
         return {"message": f"✅ general keyword '{general_kw}' added or already exists"}
     except Exception as e:

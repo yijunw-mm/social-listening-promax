@@ -372,6 +372,185 @@ async function get_comparison_consumer_perception(params = {}) {
     return []
 }
 
+
+
+//ADMIN FEATURES
+
+//add brand, and mention category
+async function add_brand(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/brand`);
+
+    // Add token from localStorage to headers
+    const token = localStorage.getItem('authToken');
+
+    // Add other params to URL
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+//add brand keyword - we can make it a list, brand_name as param
+async function add_brand_words(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/keyword`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+
+//add category
+async function add_category(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/category`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+//add slang/variant
+async function add_slang_variant(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/slang`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+//add general keyword
+async function add_general_keyword(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/general-keyword`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+// remove brand
+async function remove_brand(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/brand`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+//remove brand keyword
+async function remove_brand_words(params = {}) {
+    const url = new URL(`${BASE_URL}/admin/keyword`);
+
+    const token = localStorage.getItem('authToken');
+
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+            "token": token
+        }
+    });
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+
 export {
     uploadFile,
     groupChat,
@@ -391,5 +570,12 @@ export {
     get_share_of_voice,
     get_category_keyword_frequency,
     get_category_keyword_frequency as get_comparison_keyword_frequency,
-    get_comparison_consumer_perception
+    get_comparison_consumer_perception,
+    add_brand,
+    add_brand_words,
+    add_category,
+    add_slang_variant,
+    add_general_keyword,
+    remove_brand,
+    remove_brand_words 
 };

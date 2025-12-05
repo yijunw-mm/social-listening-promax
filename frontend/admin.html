@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Admin | Social Listening Dashboard</title>
+
+    <link href="dist/output.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+
+<body>
+
+    <!-- Load Shared Layout -->
+    <div id="layout"></div>
+
+    <script type="module" src="./src/js/pages/admin.js"></script>
+
+    <script type="module">
+        import { renderAdminPage } from './src/js/pages/admin.js';
+        import { loadLayout } from './src/js/layout-loader.js';
+
+        // Check authentication
+        if (!localStorage.getItem('authToken')) {
+            window.location.href = 'login.html';
+        }
+
+        async function loadPage() {
+            try {
+                await loadLayout('admin');
+            } catch (error) {
+                console.error('Error in loadPage:', error);
+                document.body.innerHTML = '<div style="color: white; padding: 20px;">Error loading page: ' + error.message + '</div>';
+                return;
+            }
+
+            // Render admin page content after layout is loaded
+            renderAdminPage();
+        }
+
+        loadPage();
+    </script>
+</body>

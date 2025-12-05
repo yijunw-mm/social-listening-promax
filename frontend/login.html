@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Social Listening Dashboard</title>
+    <link href="dist/output.css" rel="stylesheet">
+</head>
+
+<body class="bg-[#1e2433] min-h-screen flex items-center justify-center">
+    <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-8 shadow-2xl w-full max-w-md">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Social Listening</h1>
+            <p class="text-gray-400">Enter your access token to continue</p>
+        </div>
+
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="token" class="block text-gray-300 text-sm font-medium mb-2">
+                    Access Token
+                </label>
+                <input
+                    type="password"
+                    id="token"
+                    placeholder="Enter your token"
+                    class="w-full bg-[#1f252f] text-white border border-[#3d4456] rounded px-4 py-3 focus:outline-none focus:border-purple-400 transition"
+                    required
+                />
+            </div>
+
+            <button
+                type="submit"
+                class="w-full bg-[#C990B8] hover:bg-[#c967ac] text-white font-semibold px-6 py-3 rounded transition">
+                Login
+            </button>
+
+            <div id="errorMessage" class="hidden text-red-400 text-sm text-center mt-4"></div>
+        </form>
+    </div>
+
+    <script type="module">
+        const loginForm = document.getElementById('loginForm');
+        const tokenInput = document.getElementById('token');
+        const errorMessage = document.getElementById('errorMessage');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const token = tokenInput.value.trim();
+
+            if (!token) {
+                showError('Please enter a token');
+                return;
+            }
+
+            // Simple frontend token validation
+            if (token !== 'Pregnancy2parenthood!') {
+                showError('Invalid token. Please try again.');
+                return;
+            }
+
+            // Store token in localStorage
+            localStorage.setItem('authToken', token);
+
+            // Hide error message
+            errorMessage.classList.add('hidden');
+
+            // Redirect to main dashboard
+            window.location.href = 'brand.html';
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        // Check if already logged in
+        if (localStorage.getItem('authToken')) {
+            window.location.href = 'brand.html';
+        }
+    </script>
+</body>
+
+</html>

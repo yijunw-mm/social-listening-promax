@@ -22,7 +22,7 @@ async function loadYears() {
 
             wrapper.innerHTML = `
                 <input type="checkbox"
-                    class="year-checkbox w-4 h-4 accent-purple-500"
+                    class="year-checkbox w-4 h-4 accent-[#C990B8]"
                     value="${year}"
                     ${savedYears.includes(year) ? 'checked' : ''} />
                 <span>${year}</span>
@@ -75,7 +75,7 @@ async function loadGroupChats() {
 
             wrapper.innerHTML = `
                 <input type="checkbox"
-                    class="group-checkbox w-4 h-4 accent-purple-500"
+                    class="group-checkbox w-4 h-4 accent-[#C990B8]"
                     value="${id}"
                     ${savedSelections.includes(id) ? 'checked' : ''} />
                 <span>${label}</span>
@@ -282,8 +282,23 @@ async function loadLayout(pageId) {
 
         // Setup upload functionality
         setupUploadFunctionality();
+
+        // Setup logout button
+        setupLogoutButton();
     } catch (error) {
         console.error('Failed to load layout:', error);
+    }
+}
+
+function setupLogoutButton() {
+    const logoutButton = document.getElementById('logoutButton');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', () => {
+            // Clear the auth token
+            localStorage.removeItem('authToken');
+            // Redirect to login page
+            window.location.href = 'login.html';
+        });
     }
 }
 
@@ -302,6 +317,7 @@ function fixNavigationLinks() {
             const filename = {
                 'category': 'category.html',
                 'general': 'general.html',
+                'admin': 'admin.html',
             }[page];
 
             link.href = filename;
