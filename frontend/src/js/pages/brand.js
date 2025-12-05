@@ -706,7 +706,7 @@ async function displayTimeCustomKeywords(brandName) {
 
         customKeywords.forEach(keyword => {
             const tag = document.createElement('div');
-            tag.className = 'flex items-center gap-2 bg-purple-500 text-white px-3 py-1 rounded-full text-sm';
+            tag.className = 'flex items-center gap-2 bg-[#C990B8] text-white px-3 py-1 rounded-full text-sm';
             tag.innerHTML = `
                 <span>${keyword}</span>
                 <button class="hover:text-red-300 font-bold" data-keyword="${keyword}">×</button>

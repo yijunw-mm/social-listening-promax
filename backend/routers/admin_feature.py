@@ -208,7 +208,7 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
         for kw in general_kw:
             con.execute("""
                 INSERT INTO general_keywords (gen_keyword)
-                VALUES (?, ?)
+                VALUES (?)
                 ON CONFLICT (gen_keyword) DO NOTHING;
             """, [kw.lower().strip()])
             inserted+=1
@@ -217,6 +217,7 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ========================================
 # 🗑️ 6. DELETE BRAND /KW

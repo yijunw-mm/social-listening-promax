@@ -24,6 +24,11 @@
         import { loadLayout } from './src/js/layout-loader.js';
         import chartCache from './src/js/chartCache.js';
 
+        // Check authentication
+        if (!localStorage.getItem('authToken')) {
+            window.location.href = 'login.html';
+        }
+
         async function loadPage() {
             try {
                 // Wait for Chart.js to be available
@@ -161,7 +166,7 @@
                                 </div>
                             </div>
 
-                            <button id="keywordCompareBtn" class="bg-[#C990B8] hover:bg-[#db2777] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                            <button id="keywordCompareBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white font-semibold py-2 px-4 rounded-lg mb-4">
                                 Analyze
                             </button>
 
@@ -178,7 +183,7 @@
                                     />
                                     <button
                                         id="timeAddKeywordBtn"
-                                        class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-4 py-2 rounded font-medium">
+                                        class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-2 rounded font-medium">
                                         Add
                                     </button>
                                 </div>
@@ -217,7 +222,7 @@
                                 </div>
                             </div>
 
-                            <button id="sentimentCompareBtn" class="bg-[#C990B8] hover:bg-[#db2777] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                            <button id="sentimentCompareBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white font-semibold py-2 px-4 rounded-lg mb-4">
                                 Analyze
                             </button>
 
@@ -283,7 +288,7 @@
                                 </div>
                             </div>
 
-                            <button id="shareOfVoiceCompareBtn" class="bg-[#C990B8] hover:bg-[#db2777] text-white font-semibold py-2 px-4 rounded-lg mb-4">
+                            <button id="shareOfVoiceCompareBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white font-semibold py-2 px-4 rounded-lg mb-4">
                                 Analyze
                             </button>
 

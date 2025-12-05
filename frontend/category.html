@@ -22,6 +22,11 @@
         import { loadComparisonKeywordFrequencyData, loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/category.js';
         import chartCache from './src/js/chartCache.js';
 
+        // Check authentication
+        if (!localStorage.getItem('authToken')) {
+            window.location.href = 'login.html';
+        }
+
         async function loadPage() {
             // Wait for Chart.js to be available
             while (typeof Chart === 'undefined') {
@@ -60,7 +65,7 @@
                         <div class="text-white font-semibold text-lg">
                             Keyword Frequency
                         </div>
-                        <button id="analyzeKeywordFrequencyBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-4 py-1 rounded text-sm font-semibold transition">
+                        <button id="analyzeKeywordFrequencyBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-1 rounded text-sm font-semibold transition">
                             Analyze
                         </button>
                     </div>
@@ -101,7 +106,7 @@
                         <div class="text-white font-semibold text-lg">
                             Consumer Perception
                         </div>
-                        <button id="analyzeConsumerPerceptionBtn" class="bg-[#C990B8] hover:bg-[#B87AA8] text-white px-4 py-1 rounded text-sm font-semibold transition">
+                        <button id="analyzeConsumerPerceptionBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-1 rounded text-sm font-semibold transition">
                             Analyze
                         </button>
                     </div>
