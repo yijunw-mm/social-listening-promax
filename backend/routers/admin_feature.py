@@ -138,11 +138,11 @@ def add_keyword(brand_name: str, keyword: List[str], token: str = Header(...)):
                 INSERT INTO brand_keywords (brand_id, keyword)
                 VALUES (?, ?)
                 ON CONFLICT (brand_id, keyword) DO NOTHING;
-            """, [brand_id[0], keyword.lower().strip()])
+            """, [brand_id[0], kw.lower().strip()])
             inserted+=1
 
         con.close()
-        return {"message": f"✅ Keyword '{keyword}' added to brand '{brand_name}'."}
+        return {"message": f"✅ Keyword '{inserted}' added to brand '{brand_name}'."}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
@@ -210,10 +210,10 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
                 INSERT INTO general_keywords (gen_keyword)
                 VALUES (?, ?)
                 ON CONFLICT (gen_keyword) DO NOTHING;
-            """, [general_kw.lower().strip()])
+            """, [kw.lower().strip()])
             inserted+=1
         con.close()
-        return {"message": f"✅ general keyword '{general_kw}' added or already exists"}
+        return {"message": f"✅ general keyword '{inserted}' added or already exists"}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
