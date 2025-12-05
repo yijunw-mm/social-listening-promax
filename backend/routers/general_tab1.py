@@ -326,3 +326,22 @@ def get_available_years():
         "total": len(years),
         "years": years
     }
+
+@router.get("/dropdown-list")
+def get_cat_brand():
+    """
+    Get all brand list and category list for fronted display
+    """
+    con= duckdb.connect(DB_PATH)
+    df_cat = con.execute(
+        "SELECT DISTINCT category_name FROM categories"
+    ).fetchdf()
+    df_brand = con.execute(
+        "SELECT DISTINCT brand_name FROM brands"
+    ).fetchdf()
+    con.close()
+    return {
+        "category":df_cat["category_name"].tolist(),
+        "brand":df_brand["brand_name"].tolist()
+    }
+

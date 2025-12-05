@@ -106,3 +106,7 @@ parameter:brand_name, token
 http://127.0.0.1:8000/admin/keyword 
 mehtod:DELETE 
 parameter: brand_name, keyword,token 
+
+--get list of brand and category --
+http://127.0.0.1:8000/dropdown-list
+method:GET
