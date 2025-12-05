@@ -181,7 +181,7 @@ function setupAdminHandlers() {
         }
 
         try {
-            const result = await add_brand_words({ brand_name: brandName, keyword: keyword });
+            const result = await add_brand_words({ brand_name: brandName, keyword: [keyword] });
             resultDiv.textContent = result.message || JSON.stringify(result);
             resultDiv.className = 'mt-2 text-base text-green-400 font-medium';
             document.getElementById('keywordBrandName').value = '';
@@ -250,7 +250,7 @@ function setupAdminHandlers() {
         }
 
         try {
-            const result = await add_general_keyword({ general_kw: keyword });
+            const result = await add_general_keyword({ general_kw: [keyword] });
             resultDiv.textContent = result.message || JSON.stringify(result);
             resultDiv.className = 'mt-2 text-base text-green-400 font-medium';
             document.getElementById('generalKeyword').value = '';

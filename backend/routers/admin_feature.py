@@ -138,11 +138,11 @@ def add_keyword(brand_name: str, keyword: List[str], token: str = Header(...)):
                 INSERT INTO brand_keywords (brand_id, keyword)
                 VALUES (?, ?)
                 ON CONFLICT (brand_id, keyword) DO NOTHING;
-            """, [brand_id[0], keyword.lower().strip()])
+            """, [brand_id[0], kw.lower().strip()])
             inserted+=1
 
         con.close()
-        return {"message": f"✅ Keyword '{keyword}' added to brand '{brand_name}'."}
+        return {"message": f"✅ {inserted} keyword(s) added to brand '{brand_name}'."}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
@@ -204,7 +204,7 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
 
     con = duckdb.connect(DB_PATH)
     try:
-<<<<<<< Updated upstream
+
         inserted = 0
         for kw in general_kw:
             con.execute("""
@@ -213,18 +213,17 @@ def upsert_general(general_kw: List[str], token: str = Header(...)):
                 ON CONFLICT (gen_keyword) DO NOTHING;
             """, [general_kw.lower().strip()])
             inserted+=1
-=======
+
         con.execute("""
             INSERT INTO general_keywords (gen_keyword)
             VALUES (?)
             ON CONFLICT (gen_keyword) DO NOTHING;
         """, [general_kw.lower().strip()])
->>>>>>> Stashed changes
-        con.close()
-        return {"message": f"✅ general keyword '{general_kw}' added or already exists"}
+
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ========================================
 # 🗑️ 6. DELETE BRAND /KW
