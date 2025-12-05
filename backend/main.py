@@ -14,6 +14,7 @@ from backend.routers import brand_tab2
 from backend.routers import time_comparison_tab3
 from backend.routers import sentiment_analysis_tab3
 from backend.routers import brand_camparison_tab4
+from backend.routers import admin_feature
 
 app = FastAPI()
 
@@ -63,3 +64,4 @@ app.include_router(brand_tab2.router)
 app.include_router(time_comparison_tab3.router)
 app.include_router(sentiment_analysis_tab3.router)
 app.include_router(brand_camparison_tab4.router)
+app.include_router(admin_feature.router)
