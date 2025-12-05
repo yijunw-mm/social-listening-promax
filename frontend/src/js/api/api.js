@@ -385,8 +385,14 @@ async function add_brand(params = {}) {
 
     // Add other params to URL
     Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
+    const value = params[key];
+    if (Array.isArray(value)) {
+        value.forEach(v => url.searchParams.append(key, v));
+    } else {
+        url.searchParams.append(key, value);
+    }
+});
+
 
     const response = await fetch(url, {
         method: "POST",
@@ -404,29 +410,25 @@ async function add_brand(params = {}) {
 }
 
 //add brand keyword - we can make it a list, brand_name as param
-async function add_brand_words(params = {}) {
+async function add_brand_words(params) {
     const url = new URL(`${BASE_URL}/admin/keyword`);
-
     const token = localStorage.getItem('authToken');
-
-    Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
 
     const response = await fetch(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "token": token
-        }
+        },
+        body: JSON.stringify({
+            brand_name: params.brand_name,
+            keywords: params.keywords   // MUST be "keywords", not "keyword"
+        })
     });
-
-    if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
 
     return await response.json();
 }
+
 
 
 //add category
@@ -436,8 +438,14 @@ async function add_category(params = {}) {
     const token = localStorage.getItem('authToken');
 
     Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
+    const value = params[key];
+    if (Array.isArray(value)) {
+        value.forEach(v => url.searchParams.append(key, v));
+    } else {
+        url.searchParams.append(key, value);
+    }
+});
+
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -460,8 +468,14 @@ async function add_slang_variant(params = {}) {
     const token = localStorage.getItem('authToken');
 
     Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
+    const value = params[key];
+    if (Array.isArray(value)) {
+        value.forEach(v => url.searchParams.append(key, v));
+    } else {
+        url.searchParams.append(key, value);
+    }
+});
+
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -478,28 +492,24 @@ async function add_slang_variant(params = {}) {
 }
 
 //add general keyword
-async function add_general_keyword(params = {}) {
+async function add_general_keyword(params) {
     const url = new URL(`${BASE_URL}/admin/general-keyword`);
-
     const token = localStorage.getItem('authToken');
 
-    Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
     const response = await fetch(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "token": token
-        }
+        },
+        body: JSON.stringify({
+            general_kw: params.general_kw    // array
+        })
     });
-
-    if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
 
     return await response.json();
 }
+
 
 // remove brand
 async function remove_brand(params = {}) {
@@ -508,8 +518,14 @@ async function remove_brand(params = {}) {
     const token = localStorage.getItem('authToken');
 
     Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
+    const value = params[key];
+    if (Array.isArray(value)) {
+        value.forEach(v => url.searchParams.append(key, v));
+    } else {
+        url.searchParams.append(key, value);
+    }
+});
+
 
     const response = await fetch(url, {
         method: "DELETE",
@@ -533,8 +549,14 @@ async function remove_brand_words(params = {}) {
     const token = localStorage.getItem('authToken');
 
     Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    });
+    const value = params[key];
+    if (Array.isArray(value)) {
+        value.forEach(v => url.searchParams.append(key, v));
+    } else {
+        url.searchParams.append(key, value);
+    }
+});
+
 
     const response = await fetch(url, {
         method: "DELETE",
