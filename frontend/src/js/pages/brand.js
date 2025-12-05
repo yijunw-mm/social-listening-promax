@@ -7,6 +7,8 @@ import {
     remove_brand_keyword
 } from '../api/api.js';
 
+import chartCache from '../chartCache.js';
+
 // Register the datalabels plugin globally - check if available first
 if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels);
@@ -46,6 +48,7 @@ const brandCategoryMap = {
     'hey tiger': 'diaper',
     'nino nana': 'diaper',
     'applecrumby': 'diaper',
+    'peachybum':'diaper',
     'nan': 'formula milk',
     'lactogen': 'formula milk',
     'friso': 'formula milk',
@@ -55,6 +58,8 @@ const brandCategoryMap = {
     'dumex dugro': 'formula milk',
     'karihome': 'formula milk',
     'bellamy organic': 'formula milk',
+    'similac': 'formula milk',
+    'pediasure': 'formula milk',
     'applecrumbly': 'weaning',
     'little blossom': 'weaning',
     'rafferty garden': 'weaning',
@@ -98,8 +103,6 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
     const canvasId = 'keywordCompareChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         const params = getFilterParams({
             brand_name: brandName,
@@ -107,6 +110,17 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
             time1: time1,
             time2: time2
         });
+
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for keyword comparison');
+            renderKeywordComparisonChart(canvasId, cachedData, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
 
         const data = await get_time_compare_frequency(params);
 
@@ -118,6 +132,9 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
             showNoDataMessage(canvasId, data.error);
             return;
         }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
 
         renderKeywordComparisonChart(canvasId, data, time1, time2);
     } catch (err) {
@@ -132,8 +149,6 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
     const canvasId = 'sentimentCompareChart';
     const loadingOverlay = document.getElementById('loadingOverlay-sentimentCompareChart');
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         const params = getFilterParams({
             brand_name: brandName,
@@ -141,7 +156,19 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
             time1: time1,
             time2: time2
         });
- 
+
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for sentiment comparison');
+            renderSentimentComparisonChart(canvasId, cachedData, time1, time2);
+            displaySentimentComparisonExamples(cachedData.compare || {}, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
         const data = await get_time_compare_sentiment(params);
 
         console.log('Sentiment comparison data:', data);
@@ -151,6 +178,9 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
             displaySentimentComparisonExamples({}, time1, time2);
             return;
         }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
 
         renderSentimentComparisonChart(canvasId, data, time1, time2);
         displaySentimentComparisonExamples(data.compare || {}, time1, time2);
@@ -167,8 +197,6 @@ async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
     const canvasId = 'shareOfVoiceCompareChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         const params = getFilterParams({
             category_name: category,
@@ -176,6 +204,17 @@ async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
             time1: time1,
             time2: time2
         });
+
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for share of voice comparison');
+            renderShareOfVoiceComparisonChart(canvasId, cachedData, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
 
         const data = await get_time_compare_share_of_voice(params);
 
@@ -185,6 +224,9 @@ async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
             showNoDataMessage(canvasId, data.error);
             return;
         }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
 
         renderShareOfVoiceComparisonChart(canvasId, data, time1, time2);
     } catch (err) {
@@ -955,4 +997,24 @@ function displaySentimentComparisonExamples(compareData, time1, time2) {
 
     container.appendChild(col1);
     container.appendChild(col2);
+}
+
+// Clear cache when global filters change (only register once)
+if (!window.brandPageCacheHandlersAttached) {
+    window.addEventListener('yearChanged', () => {
+        console.log('[Brand] Year filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('groupChatChanged', () => {
+        console.log('[Brand] Group chat filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('dataUploaded', () => {
+        console.log('[Brand] New data uploaded - clearing cache');
+        chartCache.clear();
+    });
+
+    window.brandPageCacheHandlersAttached = true;
 }

@@ -4,6 +4,8 @@ import {
     keyword_cooccurrence
 } from '../api/api.js';
 
+import chartCache from '../chartCache.js';
+
 // Register the datalabels plugin globally - check if available first
 if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels);
@@ -19,7 +21,6 @@ function getFilterParams(additionalParams = {}) {
 
     // If years are selected, use group_year parameter (can be single or multiple)
     if (selectedYears && selectedYears.length > 0) {
-        // If only one year, send as integer, otherwise as array
         params.group_year = selectedYears.length === 1 ? selectedYears[0] : selectedYears;
     }
 
@@ -38,7 +39,7 @@ export async function loadKeywordFrequencyData(granularity, time1, time2) {
 }
 
 export async function loadNewKeywordsData(granularity, time1, time2) {
-    console.log('Loading new keywords prediction data:', { granularity, time1, time2 });
+    console.log('Loading new keywords prediction data:', { granularity, time1 });
     await loadNewKeywords(granularity, time1, time2);
 }
 
@@ -53,12 +54,6 @@ async function loadKeywordFrequency(granularity, time1, time2) {
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
     console.log('=== loadKeywordFrequency START ===');
-    if (loadingOverlay) {
-        console.log('Loading overlay found, activating...');
-        loadingOverlay.classList.add('active');
-    } else {
-        console.log('WARNING: Loading overlay not found!');
-    }
 
     try {
         // Parse time inputs to integers
@@ -76,6 +71,22 @@ async function loadKeywordFrequency(granularity, time1, time2) {
             time2: time2Int
         });
 
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for keyword frequency');
+            renderKeywordFrequencyComparisonChart(canvasId, cachedData, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) {
+            console.log('Loading overlay found, activating...');
+            loadingOverlay.classList.add('active');
+        } else {
+            console.log('WARNING: Loading overlay not found!');
+        }
+
         console.log('Fetching keyword frequency with params:', params);
         const data = await keywordFrequency(params);
 
@@ -86,6 +97,9 @@ async function loadKeywordFrequency(granularity, time1, time2) {
             showNoDataMessage(canvasId, 'No keyword data available');
             return;
         }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
 
         // Render comparison chart with both time periods
         renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2);
@@ -106,8 +120,6 @@ async function loadNewKeywords(granularity, time1, time2) {
     const canvasId = 'newKeywordsChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         // Parse time inputs to integers
         const time1Int = parseInt(time1);
@@ -124,27 +136,49 @@ async function loadNewKeywords(granularity, time1, time2) {
             time2: time2Int
         });
 
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for new keywords');
+            renderNewKeywordsChart(canvasId, cachedData, time1);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
         const data = await new_keywords(params);
 
         console.log('New keywords data:', data);
 
         // Backend returns { granularity: "...", compare: { "time1": [...], "time2": [...] } }
-        if (!data || !data.compare) {
-            showNoDataMessage(canvasId, 'No data available');
+        // We only display time1 data (no comparison)
+        if (!data || !data.compare || !data.compare[time1]) {
+            showNoDataMessage(canvasId, 'No new keywords data available');
             return;
         }
 
-        renderNewKeywordsComparisonChart(canvasId, data, time1, time2);
+        // Check if the data array is not empty
+        const time1Data = data.compare[time1];
+        if (!Array.isArray(time1Data) || time1Data.length === 0) {
+            showNoDataMessage(canvasId, 'No new keywords predictions for this period');
+            return;
+        }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
+
+        renderNewKeywordsChart(canvasId, data, time1);
     } catch (err) {
         console.error('Error loading new keywords:', err);
-        showNoDataMessage(canvasId, 'Error loading data');
+        showNoDataMessage(canvasId, `Error: ${err.message}`);
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
 }
 
 // Chart Rendering Functions
-function renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2) {
+function renderKeywordFrequencyComparisonChart(canvasId, data, time1,time2) {
     console.log('renderKeywordFrequencyComparisonChart called');
     const canvas = document.getElementById(canvasId);
     if (!canvas) {
@@ -207,10 +241,11 @@ function renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2) {
         {
             label: `${time2}`,
             data: keywords.map(kw => time2Map[kw] || 0),
-            backgroundColor: '#a78bfa',
+            backgroundColor: '#a78bfa',   // purple
             borderColor: '#8b5cf6',
             borderWidth: 1
         }
+
     ];
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
@@ -293,86 +328,52 @@ function renderKeywordFrequencyComparisonChart(canvasId, data, time1, time2) {
     });
 }
 
-function renderNewKeywordsComparisonChart(canvasId, data, time1, time2) {
+function renderNewKeywordsChart(canvasId, data, time1) {
     const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
+    if (!canvas) {
+        console.error('Canvas not found:', canvasId);
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
 
-    // Extract data for both time periods
+    // Extract data for the single time period
     const time1Data = data.compare[time1] || [];
-    const time2Data = data.compare[time2] || [];
 
-    // Get all unique keywords from both periods
-    const keywordSet = new Set();
-    const keywordTotals = {};
-
-    time1Data.forEach(item => {
-        if (item.keyword) {
-            keywordSet.add(item.keyword);
-            const score = item.score || item.prediction || item.count || 0;
-            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + score;
-        }
-    });
-
-    time2Data.forEach(item => {
-        if (item.keyword) {
-            keywordSet.add(item.keyword);
-            const score = item.score || item.prediction || item.count || 0;
-            keywordTotals[item.keyword] = (keywordTotals[item.keyword] || 0) + score;
-        }
-    });
-
-    // Sort keywords by total score and take top 20
-    const keywords = Array.from(keywordSet)
-        .sort((a, b) => (keywordTotals[b] || 0) - (keywordTotals[a] || 0))
-        .slice(0, 20);
-
-    if (keywords.length === 0) {
+    if (!Array.isArray(time1Data) || time1Data.length === 0) {
         showNoDataMessage(canvasId, 'No new keywords data available');
         return;
     }
 
-    // Create lookup maps
-    const time1Map = Object.fromEntries(
-        time1Data.map(item => [item.keyword, item.score || item.prediction || item.count || 0])
-    );
-    const time2Map = Object.fromEntries(
-        time2Data.map(item => [item.keyword, item.score || item.prediction || item.count || 0])
-    );
+    // Extract keywords and their prediction scores
+    const keywords = time1Data.map(item => item.keyword || item.word || '');
+    const scores = time1Data.map(item => item.score || item.prediction || item.count || 0);
 
-    // Create datasets
-    const datasets = [
-        {
-            label: `${time1}`,
-            data: keywords.map(kw => time1Map[kw] || 0),
-            backgroundColor: '#4ab4deff',
-            borderColor: '#3d9dc7',
-            borderWidth: 1
-        },
-        {
-            label: `${time2}`,
-            data: keywords.map(kw => time2Map[kw] || 0),
-            backgroundColor: '#a78bfa',
-            borderColor: '#8b5cf6',
-            borderWidth: 1
-        }
-    ];
+    // Destroy existing chart instance if it exists
+    if (chartInstances[canvasId]) {
+        chartInstances[canvasId].destroy();
+    }
 
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
+    // Create new chart with single time period
     chartInstances[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: keywords,
-            datasets: datasets
+            datasets: [{
+                label: `Prediction Score (${time1})`,
+                data: scores,
+                backgroundColor: '#4ab4deff',
+                borderColor: '#3d9dc7',
+                borderWidth: 1
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
             layout: {
                 padding: {
-                    top: 40
+                    top: 60,
+                    bottom: 30
                 }
             },
             plugins: {
@@ -414,7 +415,8 @@ function renderNewKeywordsComparisonChart(canvasId, data, time1, time2) {
                         color: '#9ca3af',
                         maxRotation: 45,
                         minRotation: 45,
-                        font: { size: 10 }
+                        autoSkip: false,
+                        font: { size: 11 }
                     },
                     grid: { color: '#3d4456' }
                 },
@@ -425,7 +427,10 @@ function renderNewKeywordsComparisonChart(canvasId, data, time1, time2) {
                         color: '#9ca3af',
                         font: { size: 14, weight: 'bold' }
                     },
-                    ticks: { color: '#9ca3af' },
+                    ticks: {
+                        color: '#9ca3af',
+                        precision: 2
+                    },
                     grid: { color: '#3d4456' },
                     beginAtZero: true
                 }
@@ -433,6 +438,7 @@ function renderNewKeywordsComparisonChart(canvasId, data, time1, time2) {
         }
     });
 }
+
 
 function showNoDataMessage(canvasId, message) {
     const canvas = document.getElementById(canvasId);
@@ -592,4 +598,24 @@ async function loadCooccurrenceData(keyword, granularity, time1, time2) {
             noDataDiv.classList.remove('hidden');
         }
     }
+}
+
+// Clear cache when global filters change (only register once)
+if (!window.generalPageCacheHandlersAttached) {
+    window.addEventListener('yearChanged', () => {
+        console.log('[General] Year filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('groupChatChanged', () => {
+        console.log('[General] Group chat filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('dataUploaded', () => {
+        console.log('[General] New data uploaded - clearing cache');
+        chartCache.clear();
+    });
+
+    window.generalPageCacheHandlersAttached = true;
 }

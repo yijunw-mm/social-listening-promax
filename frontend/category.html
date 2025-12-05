@@ -20,6 +20,7 @@
     <script type="module">
         import { loadLayout } from './src/js/layout-loader.js';
         import { loadComparisonKeywordFrequencyData, loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/category.js';
+        import chartCache from './src/js/chartCache.js';
 
         async function loadPage() {
             // Wait for Chart.js to be available
@@ -201,6 +202,10 @@
                 const granularity = document.getElementById('keywordGranularitySelector').value;
                 const time1 = document.getElementById('keywordTime1Input').value.trim();
                 const time2 = document.getElementById('keywordTime2Input').value.trim();
+
+                // Save parameters for persistence
+                chartCache.saveChartParams('category', 'comparisonKeywordChart', { category, granularity, time1, time2 });
+
                 console.log('Analyzing Keyword Frequency for category:', { category, granularity, time1, time2 });
                 await loadComparisonKeywordFrequencyData(category, granularity, time1, time2);
             });
@@ -210,6 +215,10 @@
                 const granularity = document.getElementById('perceptionGranularitySelector').value;
                 const time1 = document.getElementById('perceptionTime1Input').value.trim();
                 const time2 = document.getElementById('perceptionTime2Input').value.trim();
+
+                // Save parameters for persistence
+                chartCache.saveChartParams('category', 'consumerPerceptionChart', { category, granularity, time1, time2 });
+
                 console.log('Analyzing Consumer Perception for category:', { category, granularity, time1, time2 });
                 await loadConsumerPerceptionData(category, granularity, time1, time2);
             });
@@ -225,6 +234,28 @@
                     console.log('Group chat selection changed. Click Analyze to see updated results.');
                 });
                 window.categoryPageGroupChatHandlerAttached = true;
+            }
+
+            // Auto-load charts from saved parameters
+            const savedParams = chartCache.getPageParams('category');
+            console.log('[Category] Auto-loading charts with saved params:', savedParams);
+
+            if (savedParams.comparisonKeywordChart) {
+                const { category, granularity, time1, time2 } = savedParams.comparisonKeywordChart;
+                document.getElementById('categorySelector').value = category;
+                document.getElementById('keywordGranularitySelector').value = granularity;
+                document.getElementById('keywordTime1Input').value = time1;
+                document.getElementById('keywordTime2Input').value = time2;
+                await loadComparisonKeywordFrequencyData(category, granularity, time1, time2);
+            }
+
+            if (savedParams.consumerPerceptionChart) {
+                const { category, granularity, time1, time2 } = savedParams.consumerPerceptionChart;
+                document.getElementById('categorySelector').value = category;
+                document.getElementById('perceptionGranularitySelector').value = granularity;
+                document.getElementById('perceptionTime1Input').value = time1;
+                document.getElementById('perceptionTime2Input').value = time2;
+                await loadConsumerPerceptionData(category, granularity, time1, time2);
             }
         }
 
