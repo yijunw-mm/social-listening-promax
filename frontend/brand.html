@@ -22,6 +22,7 @@
     <script type="module">
         import { loadKeywordComparisonData, loadSentimentComparisonData, loadShareOfVoiceComparisonData, initTimeKeywordManagement, initSentimentComparisonExamplesToggle } from './src/js/pages/brand.js';
         import { loadLayout } from './src/js/layout-loader.js';
+        import chartCache from './src/js/chartCache.js';
 
         async function loadPage() {
             try {
@@ -347,6 +348,8 @@
                     const time1 = document.getElementById("keywordTime1Input").value.trim();
                     const time2 = document.getElementById("keywordTime2Input").value.trim();
 
+                    // Save parameters for persistence
+                    chartCache.saveChartParams('brand', 'keywordCompareChart', { brand, granularity, time1, time2 });
 
                     console.log('Comparing Keyword:', { brand, granularity, time1, time2 });
                     await loadKeywordComparisonData(brand, granularity, time1, time2);
@@ -361,6 +364,9 @@
                     const time1 = document.getElementById("sentimentTime1Input").value.trim();
                     const time2 = document.getElementById("sentimentTime2Input").value.trim();
 
+                    // Save parameters for persistence
+                    chartCache.saveChartParams('brand', 'sentimentCompareChart', { brand, granularity, time1, time2 });
+
                     console.log('Comparing Sentiment:', { brand, granularity, time1, time2 });
                     await loadSentimentComparisonData(brand, granularity, time1, time2);
                 });
@@ -374,6 +380,8 @@
                     const time1 = document.getElementById("shareOfVoiceTime1Input").value.trim();
                     const time2 = document.getElementById("shareOfVoiceTime2Input").value.trim();
 
+                    // Save parameters for persistence
+                    chartCache.saveChartParams('brand', 'shareOfVoiceCompareChart', { category, granularity, time1, time2 });
 
                     console.log('Comparing Share of Voice:', { category, granularity, time1, time2 });
                     await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
@@ -394,6 +402,37 @@
                     console.log('Group chat selection changed. Click Analyze to see updated results.');
                 });
                 window.brandPageGroupChatHandlerAttached = true;
+            }
+
+            // Auto-load charts from saved parameters
+            const savedParams = chartCache.getPageParams('brand');
+            console.log('[Brand] Auto-loading charts with saved params:', savedParams);
+
+            if (savedParams.keywordCompareChart) {
+                const { brand, granularity, time1, time2 } = savedParams.keywordCompareChart;
+                document.getElementById("brandSelector").value = brand;
+                document.getElementById("keywordGranularitySelector").value = granularity;
+                document.getElementById("keywordTime1Input").value = time1;
+                document.getElementById("keywordTime2Input").value = time2;
+                await loadKeywordComparisonData(brand, granularity, time1, time2);
+            }
+
+            if (savedParams.sentimentCompareChart) {
+                const { brand, granularity, time1, time2 } = savedParams.sentimentCompareChart;
+                document.getElementById("brandSelector").value = brand;
+                document.getElementById("sentimentGranularitySelector").value = granularity;
+                document.getElementById("sentimentTime1Input").value = time1;
+                document.getElementById("sentimentTime2Input").value = time2;
+                await loadSentimentComparisonData(brand, granularity, time1, time2);
+            }
+
+            if (savedParams.shareOfVoiceCompareChart) {
+                const { category, granularity, time1, time2 } = savedParams.shareOfVoiceCompareChart;
+                document.getElementById("shareOfVoiceCategorySelector").value = category;
+                document.getElementById("shareOfVoiceGranularitySelector").value = granularity;
+                document.getElementById("shareOfVoiceTime1Input").value = time1;
+                document.getElementById("shareOfVoiceTime2Input").value = time2;
+                await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
             }
         }
 

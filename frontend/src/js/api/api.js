@@ -331,12 +331,7 @@ async function get_share_of_voice(params = {}) {
 
 //brand comparison consumer perception
 async function get_comparison_consumer_perception(params = {}) {
-    const url = new URL(`${BASE_URL}/category/consumer-perception`);
-
-    Object.keys(params).forEach(key => {
-        url.searchParams.append(key, params[key]);
-    }
-    );
+    const url = buildURL('/category/consumer-perception', params);
 
     const response = await fetch(url, {
         method: "GET",
@@ -352,6 +347,25 @@ async function get_comparison_consumer_perception(params = {}) {
         return [{ word: "Error", count: 0, error: data.error }];
     }
 
+    // Backend returns comparison structure: {compare: {time1: {associated_words: []}, time2: {associated_words: []}}}
+    // Merge associated_words from both time periods
+    if (data && data.compare) {
+        const allWords = {};
+        Object.values(data.compare).forEach(timeBlock => {
+            if (timeBlock.associated_words && Array.isArray(timeBlock.associated_words)) {
+                timeBlock.associated_words.forEach(item => {
+                    if (allWords[item.word]) {
+                        allWords[item.word] += item.count;
+                    } else {
+                        allWords[item.word] = item.count;
+                    }
+                });
+            }
+        });
+        return Object.entries(allWords).map(([word, count]) => ({word, count}));
+    }
+
+    // Fallback for single-time format
     if(data && typeof data === 'object' && data.associated_words){
         return data.associated_words;
     }

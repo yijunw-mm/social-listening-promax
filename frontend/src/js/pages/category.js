@@ -3,6 +3,8 @@ import {
     get_comparison_consumer_perception
 } from '../api/api.js';
 
+import chartCache from '../chartCache.js';
+
 // Register the datalabels plugin globally - check if available first
 if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels);
@@ -54,8 +56,6 @@ async function loadComparisonKeywordFrequency(category, granularity, time1, time
     const canvasId = 'comparisonKeywordChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         // Parse time inputs to integers
         const time1Int = parseInt(time1);
@@ -73,6 +73,17 @@ async function loadComparisonKeywordFrequency(category, granularity, time1, time
             time2: time2Int
         });
 
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for comparison keyword frequency');
+            renderComparisonKeywordFrequencyChart(canvasId, cachedData, category);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
         const data = await get_comparison_keyword_frequency(params);
 
         console.log('Comparison keyword frequency data:', data);
@@ -87,9 +98,21 @@ async function loadComparisonKeywordFrequency(category, granularity, time1, time
         let normalizedData;
         if (data.keywords && Array.isArray(data.keywords)) {
             normalizedData = { [category]: data.keywords };
+        } else if (data.compare) {
+            const newData = {};
+            for (const year of Object.keys(data.compare)) {
+                const yearObj = data.compare[year];
+                if (Array.isArray(yearObj.keywords)) {
+                    newData[year] = yearObj.keywords;
+                }
+            }
+            normalizedData = newData;
         } else {
             normalizedData = data;
         }
+
+        // Cache the normalized data
+        chartCache.set(canvasId, params, normalizedData);
 
         renderComparisonKeywordFrequencyChart(canvasId, normalizedData, category);
 
@@ -100,6 +123,7 @@ async function loadComparisonKeywordFrequency(category, granularity, time1, time
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
 }
+
 
 
 function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
@@ -276,8 +300,6 @@ async function loadConsumerPerception(category, granularity, time1, time2) {
     const canvasId = 'consumerPerceptionChart';
     const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
 
-    if (loadingOverlay) loadingOverlay.classList.add('active');
-
     try {
         // Parse time inputs to integers
         const time1Int = parseInt(time1);
@@ -295,6 +317,17 @@ async function loadConsumerPerception(category, granularity, time1, time2) {
             time2: time2Int
         });
 
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for consumer perception');
+            renderConsumerPerceptionChartWithFiltering(canvasId, cachedData);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
         const data = await get_comparison_consumer_perception(params);
 
         console.log('Consumer perception data:', data);
@@ -309,16 +342,33 @@ async function loadConsumerPerception(category, granularity, time1, time2) {
             showNoDataMessage(canvasId, 'No consumer perception data available for this category');
             return;
         }
-        const topData = [...data]
-        .sort((a, b) => b.count - a.count).slice(0, 20);
 
-        renderConsumerPerceptionChart(canvasId,topData);
+        // Cache the full data
+        chartCache.set(canvasId, params, data);
+
+        renderConsumerPerceptionChartWithFiltering(canvasId, data);
     } catch (err) {
         console.error('Error loading consumer perception:', err);
         showNoDataMessage(canvasId, 'Error loading data');
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
+}
+
+// Helper function to filter and render consumer perception chart
+function renderConsumerPerceptionChartWithFiltering(canvasId, fullData) {
+    // Filter out hidden words
+    const filteredData = fullData.filter(item => {
+        const word = (item.word || '').toLowerCase();
+        return !hiddenCategoryPerceptionWords.has(word);
+    });
+
+    // Sort and get top 20
+    const topData = [...filteredData]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+    renderConsumerPerceptionChart(canvasId, topData);
 }
 
 // Chart Rendering Function
@@ -328,15 +378,9 @@ function renderConsumerPerceptionChart(canvasId, data) {
 
     const ctx = canvas.getContext('2d');
 
-    // Filter out hidden words
-    const filteredData = data.filter(item => {
-        const word = (item.word || '').toLowerCase();
-        return !hiddenCategoryPerceptionWords.has(word);
-    });
-
-    // Extract words and counts
-    const words = filteredData.map(item => item.word);
-    const counts = filteredData.map(item => item.count);
+    // Extract words and counts (filtering already done in renderConsumerPerceptionChartWithFiltering)
+    const words = data.map(item => item.word);
+    const counts = data.map(item => item.count);
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
@@ -514,4 +558,24 @@ function restoreCategoryWord(word) {
 
     // Update display
     displayCategoryHiddenWords();
+}
+
+// Clear cache when global filters change (only register once)
+if (!window.categoryPageCacheHandlersAttached) {
+    window.addEventListener('yearChanged', () => {
+        console.log('[Category] Year filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('groupChatChanged', () => {
+        console.log('[Category] Group chat filter changed - clearing cache');
+        chartCache.clear();
+    });
+
+    window.addEventListener('dataUploaded', () => {
+        console.log('[Category] New data uploaded - clearing cache');
+        chartCache.clear();
+    });
+
+    window.categoryPageCacheHandlersAttached = true;
 }
