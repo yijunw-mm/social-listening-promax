@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header
 import duckdb
 from typing import List
+from pydantic import BaseModel
 
 # ========================================
 # ⚙️  CONFIG
@@ -115,25 +116,28 @@ def add_brand(brand_name: str, category_name: str, token: str = Header(...)):
 # ========================================
 # 🧾2.ADD BRAND KW
 # ========================================
+class KeywordListRequest(BaseModel):
+    brand_name: str
+    keywords:List[str]
+
 @router.post("/keyword")
-def add_keyword(brand_name: str, keyword: List[str], token: str = Header(...)):
+def add_keyword(req: KeywordListRequest, token: str = Header(...)):
     verify_admin_token(token)
     ensure_tables()
-
 
     con = duckdb.connect(DB_PATH)
     try:
         brand_id = con.execute(
             "SELECT brand_id FROM brands WHERE brand_name = ?",
-            [brand_name.lower().strip()]
+            [req.brand_name.lower().strip()]
         ).fetchone()
 
 
         if not brand_id:
-            raise HTTPException(status_code=404, detail=f"Brand '{brand_name}' not found. Please create it first.")
+            raise HTTPException(status_code=404, detail=f"Brand '{req.brand_name}' not found. Please create it first.")
 
         inserted =0
-        for kw in keyword:
+        for kw in req.keywords:
             con.execute("""
                 INSERT INTO brand_keywords (brand_id, keyword)
                 VALUES (?, ?)
@@ -142,7 +146,7 @@ def add_keyword(brand_name: str, keyword: List[str], token: str = Header(...)):
             inserted+=1
 
         con.close()
-        return {"message": f"✅ Keyword '{inserted}' added to brand '{brand_name}'."}
+        return {"message": f"✅ Keyword '{inserted}' added to brand '{req.brand_name}'."}
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
@@ -197,15 +201,18 @@ def upsert_slang(slang: str, formal: str, token: str = Header(...)):
 # ========================================
 # 💬 5. UPDATE/INSERT GENERAL KW
 # ========================================
+class GeneralkwRequest(BaseModel):
+    general_kw:List[str]
+
 @router.post("/general-keyword")
-def upsert_general(general_kw: List[str], token: str = Header(...)):
+def upsert_general(req: GeneralkwRequest, token: str = Header(...)):
     verify_admin_token(token)
     ensure_tables()
 
     con = duckdb.connect(DB_PATH)
     try:
         inserted = 0
-        for kw in general_kw:
+        for kw in req.general_kw:
             con.execute("""
                 INSERT INTO general_keywords (gen_keyword)
                 VALUES (?)
@@ -264,7 +271,6 @@ def delete_keyword(brand_name: str, keyword: str, token: str = Header(...)):
     except Exception as e:
         con.close()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 
