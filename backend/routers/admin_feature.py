@@ -265,7 +265,7 @@ def upsert_general(req: GeneralkwRequest, token: str = Header(...)):
 
 
 # ========================================
-# 🗑️ 6. DELETE BRAND /KW
+# 🗑️ 6. DELETE BRAND and KW
 # ========================================
 @router.delete("/brand")
 def delete_brand(brand_name: str, token: str = Header(...)):
@@ -280,7 +280,8 @@ def delete_brand(brand_name: str, token: str = Header(...)):
             raise HTTPException(status_code=404, detail= f"Brand Name {brand_name} Not Found")
             
         con.execute("DELETE FROM brands WHERE brand_name = ?", [brand_name.lower().strip()])
-        con.close()
+        #con.close()
+        commit_and_close()
         return {"message": f"🗑️ Brand '{brand_name}' deleted."}
     except Exception as e:
         con.close()
@@ -304,7 +305,8 @@ def delete_keyword(brand_name: str, keyword: str, token: str = Header(...)):
         """, [brand_id[0], keyword.lower().strip()])
 
 
-        con.close()
+        #con.close()
+        commit_and_close()
         return {"message": f"🗑️ Keyword '{keyword}' removed from brand '{brand_name}'."}
     except Exception as e:
         con.close()
