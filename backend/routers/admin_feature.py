@@ -18,6 +18,14 @@ def verify_admin_token(token: str = Header(...)):
     if token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Unauthorized access.")
 
+# ========================================
+# 🧩 define function
+# ========================================
+def commit_and_close(con):
+    """ensure add feature start immediately and close connection"""
+    con.commit()
+    con.execute("CHECKPOINT")
+    con.close()
 
 # ========================================
 # 🧩 initialize
@@ -105,7 +113,8 @@ def add_brand(brand_name: str, category_name: str, token: str = Header(...)):
         """, [brand_name.lower().strip(), cat_id])
 
 
-        con.close()
+        #con.close()
+        commit_and_close(con)
         return {"message": f"✅ Brand '{brand_name}' added/ensured under category '{category_name}'."}
     except Exception as e:
         con.close()
@@ -152,7 +161,8 @@ def add_keyword(req: KeywordListRequest, token: str = Header(...)):
             """, [brand_id[0], kw.lower().strip()])
                 added_count+=1
 
-        con.close()
+        #con.close()
+        commit_and_close(con)
         if added_count == 0 and existed_count >0:
             msg = f"✅All {existed_count} keywords exist"
         elif added_count >0 and existed_count >0:
@@ -183,7 +193,8 @@ def add_category(category_name: str, token: str = Header(...)):
             VALUES (?)
             ON CONFLICT (category_name) DO NOTHING;
         """, [category_name.lower().strip()])
-        con.close()
+        #con.close()
+        commit_and_close(con)
         return {"message": f"✅ Category '{category_name}' added or already exists."}
     except Exception as e:
         con.close()
@@ -206,7 +217,8 @@ def upsert_slang(slang: str, formal: str, token: str = Header(...)):
             VALUES (?, ?)
             ON CONFLICT (slang) DO UPDATE SET formal=excluded.formal;
         """, [slang.lower().strip(), formal.lower().strip()])
-        con.close()
+        #con.close()
+        commit_and_close(con)
         return {"message": f"✅ slang '{slang}' → '{formal}' update or insert"}
     except Exception as e:
         con.close()
@@ -236,7 +248,8 @@ def upsert_general(req: GeneralkwRequest, token: str = Header(...)):
             else:
                 con.execute("INSERT INTO general_keywords (gen_keyword) VALUES (?)",[kw.lower().strip()])
                 added_count+=1
-        con.close()
+        #con.close()
+        commit_and_close(con)
         if added_count == 0 and existed_count >0:
             msg = f"✅All {existed_count} keywords exist"
         elif added_count >0 and existed_count >0:

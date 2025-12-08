@@ -10,18 +10,16 @@ from backend.data_loader import get_cached_sentiment,save_sentiment_cache,update
 
 router = APIRouter()
 DB_PATH="data/chat_cache.duckdb"
-con= duckdb.connect(DB_PATH)
-# load brand keywrod
-#brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
-query = """
-SELECT b.brand_name AS brand, k.keyword AS keyword
-FROM brand_keywords k 
-JOIN brands b on k.brand_id=b.brand_id
-"""
-brand_keyword_df = con.execute(query).fetchdf()
-con.close()
-
-brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
+def load_brand_keywords():
+    con= duckdb.connect(DB_PATH)
+    query = """
+    SELECT b.brand_name AS brand, k.keyword AS keyword
+    FROM brand_keywords k 
+    JOIN brands b on k.brand_id=b.brand_id
+    """
+    brand_keyword_df = con.execute(query).fetchdf()
+    con.close()
+    return brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 
 
 # 1.load Transformer model
@@ -119,6 +117,7 @@ def keyword_frequency(
     group_id: Optional[List[str]] = Query(None),
     group_year: Optional[List[int]] = Query(None)
 ):
+    brand_keyword_dict = load_brand_keywords()
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
 

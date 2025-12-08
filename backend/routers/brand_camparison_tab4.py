@@ -13,29 +13,32 @@ from backend.data_loader import query_chat, load_default_groups,load_groups_by_y
 
 router = APIRouter()
 DB_PATH="data/chat_cache.duckdb"
-con= duckdb.connect(DB_PATH)
+def load_cat_data():
+    con= duckdb.connect(DB_PATH)
+    query = """
+    SELECT 
+        b.brand_name AS brand,
+        c.category_name AS category,
+        k.keyword AS keyword
+    FROM brand_keywords k
+    JOIN brands b ON k.brand_id = b.brand_id
+    JOIN categories c ON b.category_id = c.category_id
+    """
+    df_cat = con.execute(query).fetchdf()
+    con.close()
+    return df_cat 
 
-#df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
-query = """
-SELECT 
-    b.brand_name AS brand,
-    c.category_name AS category,
-    k.keyword AS keyword
-FROM brand_keywords k
-JOIN brands b ON k.brand_id = b.brand_id
-JOIN categories c ON b.category_id = c.category_id
-"""
-df_cat = con.execute(query).fetchdf()
-con.close()
+def build_brand_map():
+    df_cat= load_cat_data()
+    brand_category_map = defaultdict(list)
+    for _,row in df_cat.iterrows():
+        brand = str(row["brand"]).strip().lower()
+        category = str(row["category"]).strip()
+        brand_category_map[brand].append(category)
 
-brand_category_map = defaultdict(list)
-for _,row in df_cat.iterrows():
-    brand = str(row["brand"]).strip().lower()
-    category = str(row["category"]).strip()
-    brand_category_map[brand].append(category)
-
-brand_list = list(brand_category_map.keys())
-brand_keyword_dict = (df_cat.groupby("brand")["keyword"].apply(list).to_dict())
+    brand_list = list(brand_category_map.keys())
+    brand_keyword_dict = (df_cat.groupby("brand")["keyword"].apply(list).to_dict())
+    return brand_list, brand_category_map, brand_keyword_dict
 
 def _normalize_quotes(s: str) -> str:
     if not isinstance(s, str):
@@ -90,7 +93,7 @@ def get_share_of_voice(
     month: Optional[List[int]] = Query(None),
     quarter: Optional[int] = None
     ):
-
+    brand_list, brand_category_map, brand_keyword_list  = build_brand_map()
     # --- 2. basic query
     query = """
     SELECT
@@ -245,6 +248,7 @@ def category_consumer_perception(category_name:str,
                                 top_k:int=20,
                                 group_id:Optional[List[str]]=Query(None),
                                 group_year:Optional[List[int]]=Query(None)):
+    brand_list, brand_category_map, brand_keyword_list = build_brand_map()
     brand_in_category = [b for b,cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:
         return {"error":f"category '{category_name}' not found"}
@@ -353,6 +357,7 @@ def category_keyword_frequency(
     window_size: int = 6,
     merge_overlap: bool = True,
 ):
+    brand_list, brand_category_map, brand_keyword_dict = build_brand_map()
     # ---- 1. Identify brands in the category ----
     brand_in_category = [b for b, cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:

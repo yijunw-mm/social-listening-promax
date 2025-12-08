@@ -2,18 +2,23 @@ from fastapi import APIRouter, Query
 from typing import List, Optional,Literal
 import pandas as pd
 from collections import Counter, defaultdict
-import json
+import json, duckdb
 import re
 from backend.routers.brand_tab2 import custom_keywords_dict
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
 router = APIRouter()
-
-# load brand keywrod
-brand_keyword_df = pd.read_csv("data/other_data/newest_brand_keywords.csv",keep_default_na=False,na_values=[""])
-brand_keyword_dict = brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
-# temporary store user-add keywords
-#custom_keywords_dict = {brand: set() for brand in brand_keyword_dict}
+DB_PATH="data/chat_cache.duckdb"
+def load_brand_keywords():
+    con= duckdb.connect(DB_PATH)
+    query = """
+    SELECT b.brand_name AS brand, k.keyword AS keyword
+    FROM brand_keywords k 
+    JOIN brands b on k.brand_id=b.brand_id
+    """
+    brand_keyword_df = con.execute(query).fetchdf()
+    con.close()
+    return brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
 
 
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
@@ -72,7 +77,7 @@ def compare_keyword_frequency(
     window_size: int =6,
     merge_overlap:bool=True
 ):
-    
+    brand_keyword_dict = load_brand_keywords()
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
     base_keywords = set(brand_keyword_dict[brand_name])
@@ -287,7 +292,7 @@ def compare_consumer_perception(
     window_size: int = 6,
     merge_overlap: bool = True
 ):
-
+    brand_keyword_dict = load_brand_keywords()
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
     # --- 2. basic query
