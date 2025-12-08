@@ -572,6 +572,28 @@ async function remove_brand_words(params = {}) {
     return await response.json();
 }
 
+//dropdown list
+
+//group chat number
+async function dropList(params = {}) {
+    const url = new URL(`${BASE_URL}/dropdown-list`);
+
+    // attach params to URL
+    Object.keys(params).forEach(key => {
+        url.searchParams.append(key, params[key]);
+    });
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
 
 export {
     uploadFile,
@@ -599,5 +621,6 @@ export {
     add_slang_variant,
     add_general_keyword,
     remove_brand,
-    remove_brand_words 
+    remove_brand_words,
+    dropList
 };

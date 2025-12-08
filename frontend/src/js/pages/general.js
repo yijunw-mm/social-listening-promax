@@ -140,7 +140,7 @@ async function loadNewKeywords(granularity, time1, time2) {
         const cachedData = chartCache.get(canvasId, params);
         if (cachedData) {
             console.log('Using cached data for new keywords');
-            renderNewKeywordsChart(canvasId, cachedData, time1);
+            renderNewKeywordsChart(canvasId, cachedData, time1, time2);
             return;
         }
 
@@ -152,23 +152,25 @@ async function loadNewKeywords(granularity, time1, time2) {
         console.log('New keywords data:', data);
 
         // Backend returns { granularity: "...", compare: { "time1": [...], "time2": [...] } }
-        // We only display time1 data (no comparison)
-        if (!data || !data.compare || !data.compare[time1]) {
+        if (!data || !data.compare) {
             showNoDataMessage(canvasId, 'No new keywords data available');
             return;
         }
 
-        // Check if the data array is not empty
-        const time1Data = data.compare[time1];
-        if (!Array.isArray(time1Data) || time1Data.length === 0) {
-            showNoDataMessage(canvasId, 'No new keywords predictions for this period');
+        // Check if at least one time period has data
+        const time1Data = data.compare[time1] || [];
+        const time2Data = data.compare[time2] || [];
+
+        if ((!Array.isArray(time1Data) || time1Data.length === 0) &&
+            (!Array.isArray(time2Data) || time2Data.length === 0)) {
+            showNoDataMessage(canvasId, 'No new keywords predictions for these periods');
             return;
         }
 
         // Cache the data
         chartCache.set(canvasId, params, data);
 
-        renderNewKeywordsChart(canvasId, data, time1);
+        renderNewKeywordsChart(canvasId, data, time1, time2);
     } catch (err) {
         console.error('Error loading new keywords:', err);
         showNoDataMessage(canvasId, `Error: ${err.message}`);
@@ -328,7 +330,7 @@ function renderKeywordFrequencyComparisonChart(canvasId, data, time1,time2) {
     });
 }
 
-function renderNewKeywordsChart(canvasId, data, time1) {
+function renderNewKeywordsChart(canvasId, data, time1, time2) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) {
         console.error('Canvas not found:', canvasId);
@@ -337,35 +339,85 @@ function renderNewKeywordsChart(canvasId, data, time1) {
 
     const ctx = canvas.getContext('2d');
 
-    // Extract data for the single time period
+    // Extract data for both time periods
     const time1Data = data.compare[time1] || [];
+    const time2Data = data.compare[time2] || [];
 
-    if (!Array.isArray(time1Data) || time1Data.length === 0) {
+    // Get all unique keywords from both periods
+    const keywordSet = new Set();
+    const keywordTotals = {};
+
+    time1Data.forEach(item => {
+        const keyword = item.keyword || item.word || '';
+        if (keyword) {
+            keywordSet.add(keyword);
+            const score = item.score || item.prediction || item.count || 0;
+            keywordTotals[keyword] = (keywordTotals[keyword] || 0) + score;
+        }
+    });
+
+    time2Data.forEach(item => {
+        const keyword = item.keyword || item.word || '';
+        if (keyword) {
+            keywordSet.add(keyword);
+            const score = item.score || item.prediction || item.count || 0;
+            keywordTotals[keyword] = (keywordTotals[keyword] || 0) + score;
+        }
+    });
+
+    // Sort keywords by total score and take top 25
+    const keywords = Array.from(keywordSet)
+        .sort((a, b) => (keywordTotals[b] || 0) - (keywordTotals[a] || 0))
+        .slice(0, 25);
+
+    if (keywords.length === 0) {
         showNoDataMessage(canvasId, 'No new keywords data available');
         return;
     }
 
-    // Extract keywords and their prediction scores
-    const keywords = time1Data.map(item => item.keyword || item.word || '');
-    const scores = time1Data.map(item => item.score || item.prediction || item.count || 0);
+    // Create lookup maps for both time periods
+    const time1Map = Object.fromEntries(
+        time1Data.map(item => [
+            item.keyword || item.word || '',
+            item.score || item.prediction || item.count || 0
+        ])
+    );
+    const time2Map = Object.fromEntries(
+        time2Data.map(item => [
+            item.keyword || item.word || '',
+            item.score || item.prediction || item.count || 0
+        ])
+    );
 
     // Destroy existing chart instance if it exists
     if (chartInstances[canvasId]) {
         chartInstances[canvasId].destroy();
     }
 
-    // Create new chart with single time period
+    // Create datasets for both time periods
+    const datasets = [
+        {
+            label: `${time1}`,
+            data: keywords.map(kw => time1Map[kw] || 0),
+            backgroundColor: '#4ab4deff',
+            borderColor: '#3d9dc7',
+            borderWidth: 1
+        },
+        {
+            label: `${time2}`,
+            data: keywords.map(kw => time2Map[kw] || 0),
+            backgroundColor: '#a78bfa',   // purple
+            borderColor: '#8b5cf6',
+            borderWidth: 1
+        }
+    ];
+
+    // Create new chart with both time periods
     chartInstances[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: keywords,
-            datasets: [{
-                label: `Prediction Score (${time1})`,
-                data: scores,
-                backgroundColor: '#4ab4deff',
-                borderColor: '#3d9dc7',
-                borderWidth: 1
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
