@@ -553,16 +553,7 @@ async function removeTimeKeyword(brandName, keyword) {
         // Remove from localStorage
         removeTimeCustomKeyword(brandName, keyword);
 
-        // Reload chart if there's data to compare
-        const granularity = document.getElementById('keywordGranularitySelector')?.value;
-        const time1 = document.getElementById('keywordTime1Input')?.value.trim();
-        const time2 = document.getElementById('keywordTime2Input')?.value.trim();
-
-        if (granularity && time1 && time2) {
-            await loadKeywordComparison(brandName, granularity, time1, time2);
-        }
-
-        // Update display
+        // Update display only - user needs to click "Analyze" to see changes in chart
         displayTimeCustomKeywords(brandName);
     } catch (err) {
         console.error('Error removing keyword:', err);
