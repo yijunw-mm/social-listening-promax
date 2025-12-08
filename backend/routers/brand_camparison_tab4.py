@@ -37,7 +37,7 @@ def build_brand_map():
         brand_category_map[brand].append(category)
 
     brand_list = list(brand_category_map.keys())
-    brand_keyword_dict = (df_cat.groupby("brand")["keyword"].apply(list).to_dict())
+    brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
     return brand_list, brand_category_map, brand_keyword_dict
 
 def _normalize_quotes(s: str) -> str:

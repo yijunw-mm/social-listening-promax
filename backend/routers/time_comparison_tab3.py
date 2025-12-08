@@ -9,17 +9,20 @@ from backend.data_loader import query_chat, load_default_groups,load_groups_by_y
 
 router = APIRouter()
 DB_PATH="data/chat_cache.duckdb"
-def load_brand_keywords():
+def load_cat_data():
     con= duckdb.connect(DB_PATH)
     query = """
-    SELECT b.brand_name AS brand, k.keyword AS keyword
-    FROM brand_keywords k 
-    JOIN brands b on k.brand_id=b.brand_id
+    SELECT 
+        b.brand_name AS brand,
+        c.category_name AS category,
+        k.keyword AS keyword
+    FROM brand_keywords k
+    JOIN brands b ON k.brand_id = b.brand_id
+    JOIN categories c ON b.category_id = c.category_id
     """
-    brand_keyword_df = con.execute(query).fetchdf()
+    df_cat = con.execute(query).fetchdf()
     con.close()
-    return brand_keyword_df.groupby("brand")["keyword"].apply(list).to_dict()
-
+    return df_cat 
 
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
                           window_size: int = 6, merge_overlap: bool = True):
@@ -77,7 +80,8 @@ def compare_keyword_frequency(
     window_size: int =6,
     merge_overlap:bool=True
 ):
-    brand_keyword_dict = load_brand_keywords()
+    df_cat = load_cat_data()
+    brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
     base_keywords = set(brand_keyword_dict[brand_name])
@@ -205,7 +209,7 @@ def category_share_of_voice_compare(
     group_year:Optional[List[int]]=Query(None)
 ):
     #find the category
-    df_cat = pd.read_csv("data/other_data/newest_brand_keywords.csv")
+    df_cat = load_cat_data()
     brand_category_map = defaultdict(list)
     for _,row in df_cat.iterrows():
         brand = str(row["brand"]).strip().lower()
@@ -291,8 +295,9 @@ def compare_consumer_perception(
     top_k: int = 20,
     window_size: int = 6,
     merge_overlap: bool = True
-):
-    brand_keyword_dict = load_brand_keywords()
+):  
+    df_cat=load_cat_data()
+    brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
     if brand_name not in brand_keyword_dict:
         return {"error": f"Brand '{brand_name}' not found."}
     # --- 2. basic query
