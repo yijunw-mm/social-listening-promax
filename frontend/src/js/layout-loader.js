@@ -2,6 +2,7 @@
  * Shared layout loader for all pages
  */
 import { groupChat, availableYears, uploadFile } from './api/api.js';
+import chartCache from './chartCache.js';
 
 async function loadYears() {
     try {
@@ -283,10 +284,44 @@ async function loadLayout(pageId) {
         // Setup upload functionality
         setupUploadFunctionality();
 
+        // Setup clear cache button
+        setupClearCacheButton();
+
         // Setup logout button
         setupLogoutButton();
     } catch (error) {
         console.error('Failed to load layout:', error);
+    }
+}
+
+function setupClearCacheButton() {
+    const clearCacheButton = document.getElementById('clearCacheButton');
+    if (clearCacheButton) {
+        clearCacheButton.addEventListener('click', () => {
+            // Confirm before clearing
+            const confirmClear = confirm(
+                'Are you sure you want to clear the cache?\n\n' +
+                'This will remove all cached chart data and you will need to re-analyze charts.'
+            );
+
+            if (confirmClear) {
+                // Clear the chart cache
+                chartCache.clear();
+
+                // Show temporary success message
+                const originalText = clearCacheButton.innerHTML;
+                clearCacheButton.innerHTML = '✓ Cache Cleared!';
+                clearCacheButton.style.backgroundColor = '#10b981';
+
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    clearCacheButton.innerHTML = originalText;
+                    clearCacheButton.style.backgroundColor = '';
+                }, 2000);
+
+                console.log('[Layout] Cache cleared by user');
+            }
+        });
     }
 }
 

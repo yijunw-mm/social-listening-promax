@@ -2,7 +2,6 @@ import {
     get_time_compare_frequency,
     get_time_compare_sentiment,
     update_time_compare_sentiment,
-    get_time_compare_share_of_voice,
     add_brand_keyword,
     remove_brand_keyword
 } from '../api/api.js';
@@ -35,53 +34,54 @@ function getFilterParams(additionalParams = {}) {
     return params;
 }
 
+
 // Brand to category mapping
-const brandCategoryMap = {
-    'mamypoko': 'diaper',
-    'huggies': 'diaper',
-    'pampers': 'diaper',
-    'drypers': 'diaper',
-    'merries': 'diaper',
-    'offspring': 'diaper',
-    'rascal & friends': 'diaper',
-    'homie': 'diaper',
-    'hey tiger': 'diaper',
-    'nino nana': 'diaper',
-    'applecrumby': 'diaper',
-    'peachybum':'diaper',
-    'nan': 'formula milk',
-    'lactogen': 'formula milk',
-    'friso': 'formula milk',
-    'enfamil': 'formula milk',
-    'aptamil': 'formula milk',
-    's26': 'formula milk',
-    'dumex dugro': 'formula milk',
-    'karihome': 'formula milk',
-    'bellamy organic': 'formula milk',
-    'similac': 'formula milk',
-    'pediasure': 'formula milk',
-    'applecrumbly': 'weaning',
-    'little blossom': 'weaning',
-    'rafferty garden': 'weaning',
-    'happy baby organics': 'weaning',
-    'heinz baby': 'weaning',
-    'only organic': 'weaning',
-    'holle': 'weaning',
-    'ella kitchen': 'weaning',
-    'gerber': 'weaning',
-    'mount alvernia': 'hospital',
-    'thomson medical centre': 'hospital',
-    'mount elizabeth': 'hospital',
-    'gleneagles': 'hospital',
-    'raffles hospital': 'hospital',
-    'national university hospital': 'hospital',
-    'kkh': 'hospital',
-    'parkway east hospital': 'hospital',
-    'singapore general hospital': 'hospital',
-    'sengkang general hospital': 'hospital',
-    'changi general hospital': 'hospital',
-    'johnson': 'diaper'
-};
+// //const brandCategoryMap = {
+//     'mamypoko': 'diaper',
+//     'huggies': 'diaper',
+//     'pampers': 'diaper',
+//     'drypers': 'diaper',
+//     'merries': 'diaper',
+//     'offspring': 'diaper',
+//     'rascal & friends': 'diaper',
+//     'homie': 'diaper',
+//     'hey tiger': 'diaper',
+//     'nino nana': 'diaper',
+//     'applecrumby': 'diaper',
+//     'peachybum':'diaper',
+//     'nan': 'formula milk',
+//     'lactogen': 'formula milk',
+//     'friso': 'formula milk',
+//     'enfamil': 'formula milk',
+//     'aptamil': 'formula milk',
+//     's26': 'formula milk',
+//     'dumex dugro': 'formula milk',
+//     'karihome': 'formula milk',
+//     'bellamy organic': 'formula milk',
+//     'similac': 'formula milk',
+//     'pediasure': 'formula milk',
+//     'applecrumbly': 'weaning',
+//     'little blossom': 'weaning',
+//     'rafferty garden': 'weaning',
+//     'happy baby organics': 'weaning',
+//     'heinz baby': 'weaning',
+//     'only organic': 'weaning',
+//     'holle': 'weaning',
+//     'ella kitchen': 'weaning',
+//     'gerber': 'weaning',
+//     'mount alvernia': 'hospital',
+//     'thomson medical centre': 'hospital',
+//     'mount elizabeth': 'hospital',
+//     'gleneagles': 'hospital',
+//     'raffles hospital': 'hospital',
+//     'national university hospital': 'hospital',
+//     'kkh': 'hospital',
+//     'parkway east hospital': 'hospital',
+//     'singapore general hospital': 'hospital',
+//     'sengkang general hospital': 'hospital',
+//     'changi general hospital': 'hospital',
+//     'johnson': 'diaper'
+// };
 
 // Export individual loading functions for each chart
 export async function loadKeywordComparisonData(brandName, granularity, time1, time2) {
@@ -92,11 +92,6 @@ export async function loadKeywordComparisonData(brandName, granularity, time1, t
 export async function loadSentimentComparisonData(brandName, granularity, time1, time2) {
     console.log('Loading sentiment comparison data:', { brandName, granularity, time1, time2 });
     await loadSentimentComparison(brandName, granularity, time1, time2);
-}
-
-export async function loadShareOfVoiceComparisonData(category, granularity, time1, time2) {
-    console.log('Loading share of voice comparison data:', { category, granularity, time1, time2 });
-    await loadShareOfVoiceComparison(category, granularity, time1, time2);
 }
 
 async function loadKeywordComparison(brandName, granularity, time1, time2) {
@@ -188,50 +183,6 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
         console.error('Error loading sentiment comparison:', err);
         showNoDataMessage(canvasId, 'Error loading data');
         displaySentimentComparisonExamples({}, time1, time2);
-    } finally {
-        if (loadingOverlay) loadingOverlay.classList.remove('active');
-    }
-}
-
-async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
-    const canvasId = 'shareOfVoiceCompareChart';
-    const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
-
-    try {
-        const params = getFilterParams({
-            category_name: category,
-            granularity: granularity,
-            time1: time1,
-            time2: time2
-        });
-
-        // Check cache first
-        const cachedData = chartCache.get(canvasId, params);
-        if (cachedData) {
-            console.log('Using cached data for share of voice comparison');
-            renderShareOfVoiceComparisonChart(canvasId, cachedData, time1, time2);
-            return;
-        }
-
-        // Not in cache, show loading and fetch data
-        if (loadingOverlay) loadingOverlay.classList.add('active');
-
-        const data = await get_time_compare_share_of_voice(params);
-
-        console.log('Share of voice comparison data:', data);
-
-        if (data.error) {
-            showNoDataMessage(canvasId, data.error);
-            return;
-        }
-
-        // Cache the data
-        chartCache.set(canvasId, params, data);
-
-        renderShareOfVoiceComparisonChart(canvasId, data, time1, time2);
-    } catch (err) {
-        console.error('Error loading share of voice comparison:', err);
-        showNoDataMessage(canvasId, 'Error loading data');
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
@@ -462,137 +413,6 @@ function renderSentimentComparisonChart(canvasId, data, time1, time2) {
                     title: {
                         display: true,
                         text: 'Percentage (%)',
-                        color: '#9ca3af',
-                        font: { size: 14, weight: 'bold' }
-                    },
-                    ticks: {
-                        color: '#9ca3af',
-                        callback: function(value) {
-                            return value + '%';
-                        }
-                    },
-                    grid: { color: '#3d4456' }
-                }
-            }
-        }
-    });
-}
-
-function renderShareOfVoiceComparisonChart(canvasId, data, time1, time2) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const compare = data.compare;
-
-    const time1Data = compare[time1]?.share_of_voice || [];
-    const time2Data = compare[time2]?.share_of_voice || [];
-
-    // Handle error cases
-    if (compare[time1]?.error || compare[time2]?.error) {
-        showNoDataMessage(canvasId, compare[time1]?.error || compare[time2]?.error);
-        return;
-    }
-
-    // Display total mentions
-    const time1Total = compare[time1]?.total_mentions || 0;
-    const time2Total = compare[time2]?.total_mentions || 0;
-    const totalMentionsDiv = document.getElementById('shareOfVoiceTotalMentions');
-    if (totalMentionsDiv) {
-        totalMentionsDiv.innerHTML = `
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
-                    <div class="text-gray-400 text-xs mb-0.5">${time1} Total Mentions</div>
-                    <div class="text-white text-lg font-semibold">${time1Total.toLocaleString()}</div>
-                </div>
-                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
-                    <div class="text-gray-400 text-xs mb-0.5">${time2} Total Mentions</div>
-                    <div class="text-white text-lg font-semibold">${time2Total.toLocaleString()}</div>
-                </div>
-            </div>
-        `;
-    }
-
-    // Combine all brands from both periods
-    const allBrands = new Set();
-    time1Data.forEach(item => allBrands.add(item.brand));
-    time2Data.forEach(item => allBrands.add(item.brand));
-
-    // Create percent maps
-    const time1Map = Object.fromEntries(time1Data.map(item => [item.brand, item.percent]));
-    const time2Map = Object.fromEntries(time2Data.map(item => [item.brand, item.percent]));
-
-    // Sort brands by total percent (sum of both periods) in descending order
-    const brands = Array.from(allBrands).sort((a, b) => {
-        const totalA = (time1Map[a] || 0) + (time2Map[a] || 0);
-        const totalB = (time1Map[b] || 0) + (time2Map[b] || 0);
-        return totalB - totalA;
-    });
-
-    // Prepare datasets
-    const dataset1 = brands.map(b => time1Map[b] || 0);
-    const dataset2 = brands.map(b => time2Map[b] || 0);
-
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-    chartInstances[canvasId] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: brands,
-            datasets: [
-                {
-                    label: `${time1}`,
-                    data: dataset1,
-                    backgroundColor: '#48b7e3ff'
-                },
-                {
-                    label: `${time2}`,
-                    data: dataset2,
-                    backgroundColor: '#2c4ea6ff'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: { color: '#9ca3af' }
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    color: '#9ca3af',
-                    font: {
-                        weight: 'bold',
-                        size: 10
-                    },
-                    formatter: function(value) {
-                        return value > 0 ? value.toFixed(1) + '%' : '';
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Brands',
-                        color: '#9ca3af',
-                        font: { size: 14, weight: 'bold' }
-                    },
-                    ticks: {
-                        color: '#9ca3af',
-                        maxRotation: 45,
-                        minRotation: 45,
-                        font: { size: 10 }
-                    },
-                    grid: { color: '#3d4456' }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Share of Voice (%)',
                         color: '#9ca3af',
                         font: { size: 14, weight: 'bold' }
                     },

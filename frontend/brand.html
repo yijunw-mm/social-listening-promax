@@ -20,14 +20,47 @@
     <script type="module" src="./src/js/pages/brand.js"></script>
 
     <script type="module">
-        import { loadKeywordComparisonData, loadSentimentComparisonData, loadShareOfVoiceComparisonData, initTimeKeywordManagement, initSentimentComparisonExamplesToggle } from './src/js/pages/brand.js';
+        import { loadKeywordComparisonData, loadSentimentComparisonData, initTimeKeywordManagement, initSentimentComparisonExamplesToggle } from './src/js/pages/brand.js';
         import { loadLayout } from './src/js/layout-loader.js';
         import chartCache from './src/js/chartCache.js';
+        import { dropList } from './src/js/api/api.js';
+        window.dropList = dropList;
+
+
 
         // Check authentication
         if (!localStorage.getItem('authToken')) {
             window.location.href = 'login.html';
         }
+
+        async function populateBrandDropdown() {
+            const selector = document.getElementById('brandSelector');
+            if (!selector) return;
+
+            try {
+                const data = await dropList();
+
+                console.log("Dropdown response:", data);
+
+                const brands = data.brand || [];
+
+                selector.innerHTML = "";
+
+                brands.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b;
+                    opt.textContent = b.charAt(0).toUpperCase() + b.slice(1);
+                    selector.appendChild(opt);
+                });
+
+                console.log("Brand dropdown populated:", brands);
+
+            } catch (err) {
+                console.error("Failed to populate brand dropdown:", err);
+            }
+        }
+
+
 
         async function loadPage() {
             try {
@@ -77,63 +110,7 @@
                     <div class="mb-6">
                         <label class="text-gray-300 mr-2">Select Brand:</label>
                         <select id="brandSelector" class="bg-[#1f252f] text-white p-2 rounded">
-                            <!-- Diaper Brands -->
-                            <optgroup label="Diaper Brands">
-                                <option value="mamypoko">MamyPoko</option>
-                                <option value="huggies">Huggies</option>
-                                <option value="pampers">Pampers</option>
-                                <option value="drypers">Drypers</option>
-                                <option value="merries">Merries</option>
-                                <option value="offspring">Offspring</option>
-                                <option value="rascal & friends">Rascal & Friends</option>
-                            </optgroup>
 
-                            <!-- Formula Milk Brands -->
-                            <optgroup label="Formula Milk">
-                                <option value="nan">Nan</option>
-                                <option value="lactogen">Lactogen</option>
-                                <option value="friso">Friso</option>
-                                <option value="enfamil">Enfamil</option>
-                                <option value="aptamil">Aptamil</option>
-                                <option value="s26">S-26</option>
-                                <option value="dumex dugro">Dumex Dugro</option>
-                            </optgroup>
-
-                            <!-- Baby Food & Organic Brands -->
-                            <optgroup label="Baby Food">
-                                <option value="applecrumbly">Applecrumble</option>
-                                <option value="little blossom">Little Blossom</option>
-                                <option value="rafferty garden">Rafferty's Garden</option>
-                                <option value="happy baby organics">Happy Baby Organics</option>
-                                <option value="heinz baby">Heinz Baby</option>
-                                <option value="only organic">Only Organic</option>
-                                <option value="holle">Holle</option>
-                                <option value="ella kitchen">Ella's Kitchen</option>
-                                <option value="gerber">Gerber</option>
-                            </optgroup>
-
-                            <!-- Hospitals & Healthcare -->
-                            <optgroup label="Hospitals & Healthcare">
-                                <option value="mount alvernia">Mount Alvernia Hospital</option>
-                                <option value="thomson medical centre">Thomson Medical Centre</option>
-                                <option value="mount elizabeth">Mount Elizabeth Hospital</option>
-                                <option value="gleneagles">Gleneagles Hospital</option>
-                                <option value="raffles hospital">Raffles Hospital</option>
-                                <option value="national university hospital">National University Hospital</option>
-                                <option value="kkh">KK Women & Children's Hospital</option>
-                                <option value="parkway east hospital">Parkway East Hospital</option>
-                                <option value="singapore general hospital">Singapore General Hospital</option>
-                                <option value="sengkang general hospital">Sengkang General Hospital</option>
-                                <option value="changi general hospital">Changi General Hospital</option>
-                            </optgroup>
-
-                            <!-- Baby Care Products -->
-                            <optgroup label="Baby Care & Hygiene">
-                                <option value="johnson">Johnson's Baby</option>
-                                <option value="homie">Homie</option>
-                                <option value="hey tiger">Hey Tiger</option>
-                                <option value="nino nana">Nino Nana</option>
-                            </optgroup>
                         </select>
                     </div>
 
@@ -251,57 +228,6 @@
                             </div>
                         </div>
 
-                        <!-- Share of Voice Comparison -->
-                        <div class="bg-[#1f252f] p-4 rounded-lg" style="position: relative;">
-                            <h3 class="text-white mb-4">Share of Voice Comparison</h3>
-
-                            <!-- Category Selection for Share of Voice -->
-                            <div class="mb-4">
-                                <label class="text-gray-300 block mb-2">Select Category:</label>
-                                <select id="shareOfVoiceCategorySelector" class="bg-[#2a3142] text-white p-2 rounded w-full">
-                                    <option value="diaper">Diaper</option>
-                                    <option value="formula milk">Formula Milk</option>
-                                    <option value="weaning">Weaning / Baby Food</option>
-                                    <option value="hospital">Hospital</option>
-                                </select>
-                            </div>
-
-                            <!-- Time Controls for Share of Voice Chart -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div>
-                                    <label class="text-gray-300 block mb-2">Granularity:</label>
-                                    <select id="shareOfVoiceGranularitySelector" class="bg-[#2a3142] text-white p-2 rounded w-full">
-                                        <option value="year">Year</option>
-                                        <option value="month">Month</option>
-                                        <option value="quarter">Quarter</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="text-gray-300 block mb-2">Time Period 1:</label>
-                                    <input type="text" id="shareOfVoiceTime1Input" placeholder="e.g., 2024 or 202401"
-                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2024">
-                                </div>
-                                <div>
-                                    <label class="text-gray-300 block mb-2">Time Period 2:</label>
-                                    <input type="text" id="shareOfVoiceTime2Input" placeholder="e.g., 2025 or 202501"
-                                        class="bg-[#2a3142] text-white p-2 rounded w-full" value="2025">
-                                </div>
-                            </div>
-
-                            <button id="shareOfVoiceCompareBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white font-semibold py-2 px-4 rounded-lg mb-4">
-                                Analyze
-                            </button>
-
-                            <!-- Total Mentions Display -->
-                            <div id="shareOfVoiceTotalMentions" class="mb-4"></div>
-
-                            <canvas id="shareOfVoiceCompareChart"></canvas>
-                            <div id="loadingOverlay-shareOfVoiceCompareChart" class="chart-loading-overlay">
-                                <div class="loading-spinner"></div>
-                                <p class="text-white text-sm font-semibold mt-3">Loading...</p>
-                            </div>
-                        </div>
-
                     </div>
 
                     <style>
@@ -340,6 +266,7 @@
                     </style>
                 </div>
             `;
+            await populateBrandDropdown();
 
             // Wait for canvases to be rendered
             await waitForCanvasesReady();
@@ -374,22 +301,6 @@
 
                     console.log('Comparing Sentiment:', { brand, granularity, time1, time2 });
                     await loadSentimentComparisonData(brand, granularity, time1, time2);
-                });
-            }
-
-            const shareOfVoiceCompareBtn = document.getElementById("shareOfVoiceCompareBtn");
-            if (shareOfVoiceCompareBtn) {
-                shareOfVoiceCompareBtn.addEventListener('click', async function() {
-                    const category = document.getElementById("shareOfVoiceCategorySelector").value;
-                    const granularity = document.getElementById("shareOfVoiceGranularitySelector").value;
-                    const time1 = document.getElementById("shareOfVoiceTime1Input").value.trim();
-                    const time2 = document.getElementById("shareOfVoiceTime2Input").value.trim();
-
-                    // Save parameters for persistence
-                    chartCache.saveChartParams('brand', 'shareOfVoiceCompareChart', { category, granularity, time1, time2 });
-
-                    console.log('Comparing Share of Voice:', { category, granularity, time1, time2 });
-                    await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
                 });
             }
 
@@ -430,20 +341,11 @@
                 document.getElementById("sentimentTime2Input").value = time2;
                 await loadSentimentComparisonData(brand, granularity, time1, time2);
             }
-
-            if (savedParams.shareOfVoiceCompareChart) {
-                const { category, granularity, time1, time2 } = savedParams.shareOfVoiceCompareChart;
-                document.getElementById("shareOfVoiceCategorySelector").value = category;
-                document.getElementById("shareOfVoiceGranularitySelector").value = granularity;
-                document.getElementById("shareOfVoiceTime1Input").value = time1;
-                document.getElementById("shareOfVoiceTime2Input").value = time2;
-                await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
-            }
         }
 
         // Helper function to ensure canvases are ready
         async function waitForCanvasesReady() {
-            const canvasIds = ['keywordCompareChart', 'sentimentCompareChart', 'shareOfVoiceCompareChart'];
+            const canvasIds = ['keywordCompareChart', 'sentimentCompareChart'];
             const maxWait = 5000;
             const startTime = Date.now();
 

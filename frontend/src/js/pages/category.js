@@ -1,6 +1,7 @@
 import {
     get_comparison_keyword_frequency,
-    get_comparison_consumer_perception
+    get_comparison_consumer_perception,
+    get_time_compare_share_of_voice
 } from '../api/api.js';
 
 import chartCache from '../chartCache.js';
@@ -272,6 +273,181 @@ function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
     });
 }
 
+async function loadShareOfVoiceComparison(category, granularity, time1, time2) {
+    const canvasId = 'shareOfVoiceCompareChart';
+    const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
+
+    try {
+        const params = getFilterParams({
+            category_name: category,
+            granularity: granularity,
+            time1: time1,
+            time2: time2
+        });
+
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for share of voice comparison');
+            renderShareOfVoiceComparisonChart(canvasId, cachedData, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
+        const data = await get_time_compare_share_of_voice(params);
+
+        console.log('Share of voice comparison data:', data);
+
+        if (data.error) {
+            showNoDataMessage(canvasId, data.error);
+            return;
+        }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
+
+        renderShareOfVoiceComparisonChart(canvasId, data, time1, time2);
+    } catch (err) {
+        console.error('Error loading share of voice comparison:', err);
+        showNoDataMessage(canvasId, 'Error loading data');
+    } finally {
+        if (loadingOverlay) loadingOverlay.classList.remove('active');
+    }
+}
+
+function renderShareOfVoiceComparisonChart(canvasId, data, time1, time2) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const compare = data.compare;
+
+    const time1Data = compare[time1]?.share_of_voice || [];
+    const time2Data = compare[time2]?.share_of_voice || [];
+
+    // Handle error cases
+    if (compare[time1]?.error || compare[time2]?.error) {
+        showNoDataMessage(canvasId, compare[time1]?.error || compare[time2]?.error);
+        return;
+    }
+
+    // Display total mentions
+    const time1Total = compare[time1]?.total_mentions || 0;
+    const time2Total = compare[time2]?.total_mentions || 0;
+    const totalMentionsDiv = document.getElementById('shareOfVoiceTotalMentions');
+    if (totalMentionsDiv) {
+        totalMentionsDiv.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time1} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time1Total.toLocaleString()}</div>
+                </div>
+                <div class="bg-[#2a3142] p-2 rounded border border-[#3d4456]">
+                    <div class="text-gray-400 text-xs mb-0.5">${time2} Total Mentions</div>
+                    <div class="text-white text-lg font-semibold">${time2Total.toLocaleString()}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Combine all brands from both periods
+    const allBrands = new Set();
+    time1Data.forEach(item => allBrands.add(item.brand));
+    time2Data.forEach(item => allBrands.add(item.brand));
+
+    // Create percent maps
+    const time1Map = Object.fromEntries(time1Data.map(item => [item.brand, item.percent]));
+    const time2Map = Object.fromEntries(time2Data.map(item => [item.brand, item.percent]));
+
+    // Sort brands by total percent (sum of both periods) in descending order
+    const brands = Array.from(allBrands).sort((a, b) => {
+        const totalA = (time1Map[a] || 0) + (time2Map[a] || 0);
+        const totalB = (time1Map[b] || 0) + (time2Map[b] || 0);
+        return totalB - totalA;
+    });
+
+    // Prepare datasets
+    const dataset1 = brands.map(b => time1Map[b] || 0);
+    const dataset2 = brands.map(b => time2Map[b] || 0);
+
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+    chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: brands,
+            datasets: [
+                {
+                    label: `${time1}`,
+                    data: dataset1,
+                    backgroundColor: '#48b7e3ff'
+                },
+                {
+                    label: `${time2}`,
+                    data: dataset2,
+                    backgroundColor: '#2c4ea6ff'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#9ca3af' }
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    color: '#9ca3af',
+                    font: {
+                        weight: 'bold',
+                        size: 10
+                    },
+                    formatter: function(value) {
+                        return value > 0 ? value.toFixed(1) + '%' : '';
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Brands',
+                        color: '#9ca3af',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    ticks: {
+                        color: '#9ca3af',
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: { size: 10 }
+                    },
+                    grid: { color: '#3d4456' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Share of Voice (%)',
+                        color: '#9ca3af',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    ticks: {
+                        color: '#9ca3af',
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: { color: '#3d4456' }
+                }
+            }
+        }
+    });
+}
+
 function showNoDataMessage(canvasId, message) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -288,6 +464,12 @@ function showNoDataMessage(canvasId, message) {
     ctx.fillStyle = "#9ca3af";
     ctx.textAlign = "center";
     ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
+
+// Export loading function for share of voice
+export async function loadShareOfVoiceComparisonData(category, granularity, time1, time2) {
+    console.log('Loading share of voice comparison data:', { category, granularity, time1, time2 });
+    await loadShareOfVoiceComparison(category, granularity, time1, time2);
 }
 
 // Export loading function for consumer perception

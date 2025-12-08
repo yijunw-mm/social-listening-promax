@@ -12,15 +12,46 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 </head>
 
+
 <body>
+
+    
 
     <!-- Load Shared Layout -->
     <div id="layout"></div>
 
     <script type="module">
+
+        async function populateCategoryDropdwon() {
+            const selector = document.getElementById('categorySelector');
+            if (!selector) return;
+
+            try {
+                const data = await dropList();   
+                console.log("Dropdown response:", data);
+
+                const categories = data.category || []; 
+
+                selector.innerHTML = "";
+
+                categories.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+                    selector.appendChild(opt);
+                });
+
+                console.log("Category dropdown populated:", categories);
+
+            } catch (err) {
+                console.error("Failed to populate category dropdown:", err);
+            }
+        }
+
         import { loadLayout } from './src/js/layout-loader.js';
-        import { loadComparisonKeywordFrequencyData, loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/category.js';
+        import { loadShareOfVoiceComparisonData, loadComparisonKeywordFrequencyData, loadConsumerPerceptionData, initCategoryPerceptionWordFilter } from './src/js/pages/category.js';
         import chartCache from './src/js/chartCache.js';
+        import { dropList } from './src/js/api/api.js';
 
         // Check authentication
         if (!localStorage.getItem('authToken')) {
@@ -50,11 +81,52 @@
                         <div class="flex-1">
                             <label class="block text-gray-400 text-sm mb-2">Category</label>
                             <select id="categorySelector" class="w-full bg-[#1e2433] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-blue-500">
-                                <option value="diaper">Diaper</option>
-                                <option value="formula milk">Formula Milk</option>
-                                <option value="weaning">Weaning</option>
-                                <option value="hospital">Hospital</option>
+                                <!-- Options will be populated dynamically -->
                             </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Share of Voice Comparison Chart -->
+                <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-[#3d4456] pb-2">
+                        <div class="text-white font-semibold text-lg">
+                            Share of Voice Comparison
+                        </div>
+                        <button id="analyzeShareOfVoiceBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-1 rounded text-sm font-semibold transition">
+                            Analyze
+                        </button>
+                    </div>
+
+                    <!-- Time Controls for Share of Voice -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="text-gray-300 block mb-2">Granularity:</label>
+                            <select id="shareOfVoiceGranularitySelector" class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]">
+                                <option value="year">Year</option>
+                                <option value="month">Month</option>
+                                <option value="quarter">Quarter</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 1:</label>
+                            <input type="text" id="shareOfVoiceTime1Input" placeholder="e.g., 2024 or 202401"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2024">
+                        </div>
+                        <div>
+                            <label class="text-gray-300 block mb-2">Time Period 2:</label>
+                            <input type="text" id="shareOfVoiceTime2Input" placeholder="e.g., 2025 or 202501"
+                                class="bg-[#1e2433] text-white p-2 rounded w-full border border-[#3d4456]" value="2025">
+                        </div>
+                    </div>
+
+                    <!-- Total Mentions Display -->
+                    <div id="shareOfVoiceTotalMentions" class="mb-4"></div>
+
+                    <div class="relative" style="min-height: 400px; position: relative;">
+                        <canvas id="shareOfVoiceCompareChart"></canvas>
+                        <div id="loadingOverlay-shareOfVoiceCompareChart" class="chart-loading-overlay">
+                            <div class="loading-spinner"></div>
                         </div>
                     </div>
                 </div>
@@ -201,7 +273,22 @@
                 </style>
             `;
 
+            await populateCategoryDropdwon();
+
             // Add event listeners for individual analyze buttons
+            document.getElementById('analyzeShareOfVoiceBtn').addEventListener('click', async () => {
+                const category = document.getElementById('categorySelector').value;
+                const granularity = document.getElementById('shareOfVoiceGranularitySelector').value;
+                const time1 = document.getElementById('shareOfVoiceTime1Input').value.trim();
+                const time2 = document.getElementById('shareOfVoiceTime2Input').value.trim();
+
+                // Save parameters for persistence
+                chartCache.saveChartParams('category', 'shareOfVoiceCompareChart', { category, granularity, time1, time2 });
+
+                console.log('Analyzing Share of Voice for category:', { category, granularity, time1, time2 });
+                await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
+            });
+
             document.getElementById('analyzeKeywordFrequencyBtn').addEventListener('click', async () => {
                 const category = document.getElementById('categorySelector').value;
                 const granularity = document.getElementById('keywordGranularitySelector').value;
@@ -244,6 +331,15 @@
             // Auto-load charts from saved parameters
             const savedParams = chartCache.getPageParams('category');
             console.log('[Category] Auto-loading charts with saved params:', savedParams);
+
+            if (savedParams.shareOfVoiceCompareChart) {
+                const { category, granularity, time1, time2 } = savedParams.shareOfVoiceCompareChart;
+                document.getElementById('categorySelector').value = category;
+                document.getElementById('shareOfVoiceGranularitySelector').value = granularity;
+                document.getElementById('shareOfVoiceTime1Input').value = time1;
+                document.getElementById('shareOfVoiceTime2Input').value = time2;
+                await loadShareOfVoiceComparisonData(category, granularity, time1, time2);
+            }
 
             if (savedParams.comparisonKeywordChart) {
                 const { category, granularity, time1, time2 } = savedParams.comparisonKeywordChart;
