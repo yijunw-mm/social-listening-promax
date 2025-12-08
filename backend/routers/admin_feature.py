@@ -281,7 +281,7 @@ def delete_brand(brand_name: str, token: str = Header(...)):
             
         con.execute("DELETE FROM brands WHERE brand_name = ?", [brand_name.lower().strip()])
         #con.close()
-        commit_and_close()
+        commit_and_close(con)
         return {"message": f"🗑️ Brand '{brand_name}' deleted."}
     except Exception as e:
         con.close()
@@ -306,7 +306,7 @@ def delete_keyword(brand_name: str, keyword: str, token: str = Header(...)):
 
 
         #con.close()
-        commit_and_close()
+        commit_and_close(con)
         return {"message": f"🗑️ Keyword '{keyword}' removed from brand '{brand_name}'."}
     except Exception as e:
         con.close()
