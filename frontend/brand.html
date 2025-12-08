@@ -320,9 +320,9 @@
                 window.brandPageGroupChatHandlerAttached = true;
             }
 
-            // Auto-load charts from saved parameters
+            // Restore saved parameters to form fields (but don't auto-load)
             const savedParams = chartCache.getPageParams('brand');
-            console.log('[Brand] Auto-loading charts with saved params:', savedParams);
+            console.log('[Brand] Restoring saved params to form fields:', savedParams);
 
             if (savedParams.keywordCompareChart) {
                 const { brand, granularity, time1, time2 } = savedParams.keywordCompareChart;
@@ -330,7 +330,7 @@
                 document.getElementById("keywordGranularitySelector").value = granularity;
                 document.getElementById("keywordTime1Input").value = time1;
                 document.getElementById("keywordTime2Input").value = time2;
-                await loadKeywordComparisonData(brand, granularity, time1, time2);
+                // Removed auto-load - user must click "Analyze" button
             }
 
             if (savedParams.sentimentCompareChart) {
@@ -339,7 +339,7 @@
                 document.getElementById("sentimentGranularitySelector").value = granularity;
                 document.getElementById("sentimentTime1Input").value = time1;
                 document.getElementById("sentimentTime2Input").value = time2;
-                await loadSentimentComparisonData(brand, granularity, time1, time2);
+                // Removed auto-load - user must click "Analyze" button
             }
         }
 

@@ -2,6 +2,8 @@ const chartCache = {
     cache: {},
     STORAGE_KEY: 'chartCache',
     PARAMS_STORAGE_KEY: 'chartParams',
+    _isDirty: false,
+    _persistTimer: null,
 
     // Initialize cache from localStorage
     _init() {
@@ -15,15 +17,36 @@ const chartCache = {
             console.warn('[Cache] Failed to load from localStorage:', e);
             this.cache = {};
         }
+
+        // Set up periodic persistence (every 30 seconds if dirty)
+        setInterval(() => {
+            if (this._isDirty) {
+                this._persistNow();
+            }
+        }, 30000);
+
+        // Persist on page unload
+        window.addEventListener('beforeunload', () => {
+            if (this._isDirty) {
+                this._persistNow();
+            }
+        });
     },
 
-    // Persist cache to localStorage
-    _persist() {
+    // Persist cache to localStorage immediately
+    _persistNow() {
         try {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.cache));
+            this._isDirty = false;
+            console.log('[Cache] Persisted to localStorage');
         } catch (e) {
             console.warn('[Cache] Failed to persist to localStorage:', e);
         }
+    },
+
+    // Mark cache as dirty (deprecated - kept for compatibility)
+    _persist() {
+        this._isDirty = true;
     },
 
     // Helper function to create a consistent string representation of params
@@ -50,12 +73,14 @@ const chartCache = {
         const paramsKey = this._paramsKey(params);
         const cacheKey = `${chartId}:${paramsKey}`;
 
+        // Store data directly without deep cloning for performance
+        // Data is read-only from cache, so no mutation issues
         this.cache[cacheKey] = {
-            params: JSON.parse(JSON.stringify(params)),
-            data: JSON.parse(JSON.stringify(data)),
+            params: params,
+            data: data,
             timestamp: Date.now()
         };
-        this._persist();
+        this._persist(); // Just marks as dirty, doesn't actually persist immediately
         console.log(`[Cache] SET: ${chartId}`, params);
     },
 
@@ -83,7 +108,8 @@ const chartCache = {
             this.cache = {};
             console.log('[Cache] CLEAR ALL');
         }
-        this._persist();
+        // Persist immediately when clearing (user action)
+        this._persistNow();
     },
 
     has(chartId, currentParams) {
