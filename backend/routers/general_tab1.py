@@ -249,8 +249,10 @@ def keyword_cooccurrence(
         total_pairs = 0
 
         for text in texts:
-            tokens = [w for w in re.findall(r"\b[a-z]{3,}\b", text.lower()) if len(w) >= 3]
-            tokens = [w for w in tokens if w != kw]
+            pattern_kw = rf"(?<!\w){re.escape(kw.lower())}(?!\w)"
+            clean_text = re.sub(pattern_kw, "", text.lower())
+
+            tokens = re.findall(r"\b[a-z]{3,}\b", clean_text)
         
             # update frequency
             word_freq.update(tokens)
