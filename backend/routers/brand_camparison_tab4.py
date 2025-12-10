@@ -68,9 +68,9 @@ def count_kw(context_texts, keywords):
     cnt = Counter()
     for text in context_texts:
         t = _normalize_quotes(text)
-        for kw, patt in patterns.items():
+        for kw,patt in patterns.items():
             if patt.search(t):
-                cnt[kw] += 1
+                cnt[kw]+=1
     return cnt
 
 #---------- define filter function---------
@@ -398,10 +398,14 @@ def category_keyword_frequency(
         # ---- 5. Count keyword frequency ----
         freq_counter = Counter()
         for text in context_texts:
-            words = re.findall(r"\w+", text.lower())
+            #words = re.findall(r"\w+", text.lower())
+            t=text.lower()
             for kw in category_keywords:
-                if kw.lower() in words:
-                    freq_counter[kw] += 1
+                kw_lower=kw.lower().strip()
+                pattern = rf"(?<!\w){re.escape(kw_lower)}(s|es)?\b"
+                if re.search(pattern, t, flags=re.IGNORECASE):
+                #if kw_lower in words:
+                    freq_counter[kw_lower] += 1
 
         # ---- 6. Fallback if no keywords ----
         if not freq_counter:
@@ -412,8 +416,15 @@ def category_keyword_frequency(
             return {"category": category_name, "keywords": top_fallback}
 
 
-        result = [{"keyword": kw, "count": freq} for kw, freq in freq_counter.items()]
-        result.sort(key=lambda x: x["count"], reverse=True)
+        #result = [{"keyword": kw, "count": freq} for kw, freq in freq_counter.items()]
+        #result.sort(key=lambda x: x["count"], reverse=True)
+        df_result = (
+        pd.DataFrame(list(freq_counter.items()), columns=["keyword", "count"])
+        .groupby("keyword", as_index=False)["count"].sum()
+        .sort_values("count", ascending=False)
+    )
+        # ---- format final output ----
+        result = df_result.to_dict(orient="records")
         return {"total_mentions":len(context_texts),"keywords":result}
     
     block1 = compute_kw_freq(df1)

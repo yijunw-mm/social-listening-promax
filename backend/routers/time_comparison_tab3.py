@@ -185,7 +185,7 @@ def _build_keyword_pattern(kw: str) -> re.Pattern:
     k = re.escape(k)
     k = k.replace(r"\-", r"(?:-|\\s)")
     k = k.replace(r"\ ", r"\s+")
-    pattern = rf"(?<![A-Za-z0-9]){k}(?![A-Za-z0-9])"
+    pattern = rf"(?<!\w){k}(?!\w)"
     return re.compile(pattern, flags=re.IGNORECASE)
 
 def count_kw(context_texts, keywords):
@@ -194,8 +194,9 @@ def count_kw(context_texts, keywords):
     for text in context_texts:
         t = _normalize_quotes(text)
         for kw, patt in patterns.items():
-            if patt.search(t):
-                cnt[kw] += 1
+            matches = patt.findall(text)
+            #if patt.search(t):
+            cnt[kw] += len(matches)
     return cnt
 
 #------share of voice--------

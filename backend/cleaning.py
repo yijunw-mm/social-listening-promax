@@ -21,13 +21,22 @@ def remove_emoji(text):
 
 def replace_slang(text:str,slang_dict:dict) ->str:
     """replace the slang to formal english"""
-    tokens = word_tokenize(text)
-    replaced = [slang_dict.get(token,token) for token in tokens]
-    return ' '.join(replaced)
+    text_out = text
+    for slang, formal in slang_dict.items():
+        pattern = rf"\b{re.escape(slang)}\b"
+        text_out = re.sub(pattern,formal,text_out,flags=re.IGNORECASE)
+    return text_out
+
+    #tokens = word_tokenize(text)
+    #replaced = [slang_dict.get(token,token) for token in tokens]
+    #return ' '.join(replaced)
 
 def clean_text(text:str,slang_dict:dict =None) ->str:
-    if not isinstance(text,str):
+    if text is None:
         return ''
+    if not isinstance(text,str):
+        text=str(text)
+
     text = (text.replace('<Media omitted>', '')
             .replace('This message was deleted', '')
             .replace('This message was edited', '')
@@ -55,7 +64,10 @@ def clean_text(text:str,slang_dict:dict =None) ->str:
 def clean_dataframe(df:pd.DataFrame,slang_dict=None) ->pd.DataFrame:
     df=df.copy()
     df['datetime']=pd.to_datetime(df['datetime'],errors="coerce")
-    df['clean_text'] = df['text'].apply(lambda x: clean_text(x,slang_dict))
+    df['clean_text'] = (
+        df['text']
+        .fillna('')
+        .astype(str).apply(lambda x: clean_text(x,slang_dict)))
     #remove empty
     df=df[df['clean_text'].str.strip()!=""]
     
@@ -106,4 +118,4 @@ def clean_all_years(input_base="data/processing_output/structure_chat",
 if __name__=="__main__":
     df_slang=pd.read_csv("data/other_data/slang_to_formal.csv")
     slang_dict = dict(zip(df_slang['slang'].str.lower(),df_slang['formal'].str.lower()))
-    clean_all_years()
+    clean_all_years(slang_dict=slang_dict)
