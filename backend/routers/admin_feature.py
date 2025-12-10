@@ -297,7 +297,7 @@ def delete_keyword(brand_name: str, keyword: str, token: str = Header(...)):
             "SELECT brand_id FROM brands WHERE brand_name = ?", [brand_name.lower().strip()]
         ).fetchone()
         if not brand_id:
-            raise HTTPException(status_code=404, detail="Brand Name {brand_name} Not Found.")
+            raise HTTPException(status_code=404, detail=f"Brand Name {brand_name} Not Found.")
 
         con.execute("""
             DELETE FROM brand_keywords

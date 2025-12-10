@@ -232,15 +232,34 @@ async function get_consumer_perception(params = {}) {
 async function get_time_compare_frequency(params = {}) {
     const url = buildURL('/brand/time-compare/frequency', params);
 
-    const response = await fetch(url, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-    });
+    console.log('=== API CALL: get_time_compare_frequency ===');
+    console.log('URL:', url.toString());
+    console.log('Params:', params);
 
-    if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+
+        if (!response.ok) {
+            console.error('Response not OK:', response.status, response.statusText);
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data received:', data);
+        console.log('=== API CALL COMPLETED ===');
+
+        return data;
+    } catch (error) {
+        console.error('=== API CALL FAILED ===');
+        console.error('Error:', error);
+        throw error;
     }
-    return await response.json();
 }
 
 //time-compare sentiment

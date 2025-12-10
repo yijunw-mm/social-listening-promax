@@ -119,11 +119,18 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
 
         const data = await get_time_compare_frequency(params);
 
-        console.log('Keyword comparison data:', data);
+        console.log('=== KEYWORD COMPARISON DEBUG ===');
+        console.log('Full API response:', JSON.stringify(data, null, 2));
+        console.log('Data type:', typeof data);
+        console.log('Data.compare exists:', !!data.compare);
+        console.log('Time1 value:', time1);
+        console.log('Time2 value:', time2);
         console.log('Time1 keywords:', data.compare?.[time1]);
         console.log('Time2 keywords:', data.compare?.[time2]);
+        console.log('================================');
 
         if (data.error) {
+            console.error('API returned error:', data.error);
             showNoDataMessage(canvasId, data.error);
             return;
         }
@@ -133,8 +140,12 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
 
         renderKeywordComparisonChart(canvasId, data, time1, time2);
     } catch (err) {
-        console.error('Error loading keyword comparison:', err);
-        showNoDataMessage(canvasId, 'Error loading data');
+        console.error('=== ERROR IN loadKeywordComparison ===');
+        console.error('Error type:', err.name);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+        console.error('======================================');
+        showNoDataMessage(canvasId, 'Error loading data: ' + err.message);
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
     }
@@ -190,18 +201,33 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
 
 // Chart Rendering Functions
 function renderKeywordComparisonChart(canvasId, data, time1, time2) {
+    console.log('=== renderKeywordComparisonChart called ===');
+    console.log('canvasId:', canvasId);
+    console.log('time1:', time1, 'time2:', time2);
+
     const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
+    console.log('Canvas element found:', !!canvas);
+    if (!canvas) {
+        console.error('Canvas not found!');
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     const compare = data.compare;
+    console.log('Compare object:', compare);
 
     // Extract keyword data from both time periods
     const time1Data = compare[time1] || [];
     const time2Data = compare[time2] || [];
 
+    console.log('time1Data:', time1Data);
+    console.log('time2Data:', time2Data);
+    console.log('time1Data is array:', Array.isArray(time1Data));
+    console.log('time2Data is array:', Array.isArray(time2Data));
+
     // Handle error cases
     if (time1Data.error || time2Data.error) {
+        console.error('Error in time data:', time1Data.error || time2Data.error);
         showNoDataMessage(canvasId, time1Data.error || time2Data.error);
         return;
     }
@@ -226,7 +252,16 @@ function renderKeywordComparisonChart(canvasId, data, time1, time2) {
     const dataset1 = keywords.map(kw => time1Map[kw] || 0);
     const dataset2 = keywords.map(kw => time2Map[kw] || 0);
 
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+    console.log('About to create chart with:', {
+        keywords: keywords.length,
+        dataset1Length: dataset1.length,
+        dataset2Length: dataset2.length
+    });
+
+    if (chartInstances[canvasId]) {
+        console.log('Destroying existing chart instance');
+        chartInstances[canvasId].destroy();
+    }
 
     chartInstances[canvasId] = new Chart(ctx, {
         type: 'bar',
@@ -294,6 +329,9 @@ function renderKeywordComparisonChart(canvasId, data, time1, time2) {
             }
         }
     });
+
+    console.log('Chart instance created successfully:', !!chartInstances[canvasId]);
+    console.log('=== renderKeywordComparisonChart completed ===');
 }
 
 function renderSentimentComparisonChart(canvasId, data, time1, time2) {
@@ -553,16 +591,7 @@ async function removeTimeKeyword(brandName, keyword) {
         // Remove from localStorage
         removeTimeCustomKeyword(brandName, keyword);
 
-        // Reload chart if there's data to compare
-        const granularity = document.getElementById('keywordGranularitySelector')?.value;
-        const time1 = document.getElementById('keywordTime1Input')?.value.trim();
-        const time2 = document.getElementById('keywordTime2Input')?.value.trim();
-
-        if (granularity && time1 && time2) {
-            await loadKeywordComparison(brandName, granularity, time1, time2);
-        }
-
-        // Update display
+        // Update display only - user needs to click "Analyze" to see changes in chart
         displayTimeCustomKeywords(brandName);
     } catch (err) {
         console.error('Error removing keyword:', err);
