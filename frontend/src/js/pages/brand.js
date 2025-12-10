@@ -154,6 +154,7 @@ async function loadKeywordComparison(brandName, granularity, time1, time2) {
 async function loadSentimentComparison(brandName, granularity, time1, time2) {
     const canvasId = 'sentimentCompareChart';
     const loadingOverlay = document.getElementById('loadingOverlay-sentimentCompareChart');
+    const analyzeButton = document.getElementById('sentimentCompareBtn');
 
     try {
         const params = getFilterParams({
@@ -174,6 +175,14 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
 
         // Not in cache, show loading and fetch data
         if (loadingOverlay) loadingOverlay.classList.add('active');
+
+        // Disable the analyze button to prevent multiple clicks
+        if (analyzeButton) {
+            analyzeButton.disabled = true;
+            analyzeButton.style.opacity = '0.5';
+            analyzeButton.style.cursor = 'not-allowed';
+            analyzeButton.textContent = 'Analyzing...';
+        }
 
         const data = await get_time_compare_sentiment(params);
 
@@ -196,6 +205,14 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
         displaySentimentComparisonExamples({}, time1, time2);
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active');
+
+        // Re-enable the analyze button
+        if (analyzeButton) {
+            analyzeButton.disabled = false;
+            analyzeButton.style.opacity = '1';
+            analyzeButton.style.cursor = 'pointer';
+            analyzeButton.textContent = 'Analyze';
+        }
     }
 }
 
@@ -515,6 +532,10 @@ export function initTimeKeywordManagement() {
             // Clear input
             keywordInput.value = '';
 
+            // Clear cache to force fresh data fetch with new keyword
+            chartCache.clear('keywordCompareChart');
+            console.log('[Add Keyword] Cleared cache for keywordCompareChart');
+
             // Reload chart if there's data to compare
             const granularity = document.getElementById('keywordGranularitySelector')?.value;
             const time1 = document.getElementById('keywordTime1Input')?.value.trim();
@@ -591,7 +612,20 @@ async function removeTimeKeyword(brandName, keyword) {
         // Remove from localStorage
         removeTimeCustomKeyword(brandName, keyword);
 
-        // Update display only - user needs to click "Analyze" to see changes in chart
+        // Clear cache to force fresh data fetch without removed keyword
+        chartCache.clear('keywordCompareChart');
+        console.log('[Remove Keyword] Cleared cache for keywordCompareChart');
+
+        // Reload chart if there's data to compare
+        const granularity = document.getElementById('keywordGranularitySelector')?.value;
+        const time1 = document.getElementById('keywordTime1Input')?.value.trim();
+        const time2 = document.getElementById('keywordTime2Input')?.value.trim();
+
+        if (granularity && time1 && time2) {
+            await loadKeywordComparison(brandName, granularity, time1, time2);
+        }
+
+        // Update display
         displayTimeCustomKeywords(brandName);
     } catch (err) {
         console.error('Error removing keyword:', err);
@@ -723,7 +757,23 @@ async function showSentimentEditDialog(example) {
 
             dialog.remove();
 
-            alert('Sentiment updated successfully! Click "Analyze" to see the updated chart.');
+            // Clear cache to force fresh data fetch with updated sentiment
+            chartCache.clear('sentimentCompareChart');
+            console.log('[Edit Sentiment] Cleared cache for sentimentCompareChart');
+
+            // Get current parameters and reload chart automatically
+            const brandSelector = document.getElementById('brandSelector');
+            const brandName = brandSelector ? brandSelector.value : null;
+            const granularity = document.getElementById('sentimentGranularitySelector')?.value;
+            const time1 = document.getElementById('sentimentTime1Input')?.value.trim();
+            const time2 = document.getElementById('sentimentTime2Input')?.value.trim();
+
+            if (brandName && granularity && time1 && time2) {
+                await loadSentimentComparison(brandName, granularity, time1, time2);
+                alert('Sentiment updated successfully!');
+            } else {
+                alert('Sentiment updated successfully! Click "Analyze" to see the updated chart.');
+            }
         } catch (err) {
             console.error('Error updating sentiment:', err);
             alert('Failed to update sentiment. Please try again.');
@@ -850,19 +900,32 @@ function displaySentimentComparisonExamples(compareData, time1, time2) {
 
 // Clear cache when global filters change (only register once)
 if (!window.brandPageCacheHandlersAttached) {
+    let yearChangeTimeout;
+    let groupChatChangeTimeout;
+    let dataUploadTimeout;
+
     window.addEventListener('yearChanged', () => {
-        console.log('[Brand] Year filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(yearChangeTimeout);
+        yearChangeTimeout = setTimeout(() => {
+            console.log('[Brand] Year filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('groupChatChanged', () => {
-        console.log('[Brand] Group chat filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(groupChatChangeTimeout);
+        groupChatChangeTimeout = setTimeout(() => {
+            console.log('[Brand] Group chat filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('dataUploaded', () => {
-        console.log('[Brand] New data uploaded - clearing cache');
-        chartCache.clear();
+        clearTimeout(dataUploadTimeout);
+        dataUploadTimeout = setTimeout(() => {
+            console.log('[Brand] New data uploaded - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.brandPageCacheHandlersAttached = true;

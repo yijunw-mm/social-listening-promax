@@ -156,10 +156,10 @@ function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
         }
     });
 
-    // Sort keywords by total count in descending order
+    // Sort keywords by total count in descending order and limit to top 25
     const keywords = Array.from(keywordSet).sort((a, b) => {
         return (keywordTotals[b] || 0) - (keywordTotals[a] || 0);
-    });
+    }).slice(0, 25);
 
     const brands = Object.keys(data);
 
@@ -251,9 +251,11 @@ function renderComparisonKeywordFrequencyChart(canvasId, data, category) {
                     },
                     ticks: {
                         color: '#9ca3af',
-                        maxRotation: 45,
+                        maxRotation: 90,
                         minRotation: 45,
-                        font: { size: 10 }
+                        font: { size: 8 },
+                        autoSkip: false,
+                        maxTicksLimit: keywords.length
                     },
                     grid: { color: '#3d4456' }
                 },
@@ -681,6 +683,10 @@ export function initCategoryPerceptionWordFilter() {
         // Clear input
         filterInput.value = '';
 
+        // Clear cache to force fresh data fetch with hidden words applied
+        chartCache.clear('consumerPerceptionChart');
+        console.log('[Hide Word] Cleared cache for consumerPerceptionChart');
+
         // Re-render chart with filtered data - get current time parameters
         const categorySelector = document.getElementById('categorySelector');
         const category = categorySelector ? categorySelector.value : 'diaper';
@@ -730,6 +736,10 @@ function restoreCategoryWord(word) {
     // Remove from hidden words set
     hiddenCategoryPerceptionWords.delete(word.toLowerCase());
 
+    // Clear cache to force fresh data fetch without hidden word
+    chartCache.clear('consumerPerceptionChart');
+    console.log('[Restore Word] Cleared cache for consumerPerceptionChart');
+
     // Re-render chart - get current time parameters
     const categorySelector = document.getElementById('categorySelector');
     const category = categorySelector ? categorySelector.value : 'diaper';
@@ -744,19 +754,32 @@ function restoreCategoryWord(word) {
 
 // Clear cache when global filters change (only register once)
 if (!window.categoryPageCacheHandlersAttached) {
+    let yearChangeTimeout;
+    let groupChatChangeTimeout;
+    let dataUploadTimeout;
+
     window.addEventListener('yearChanged', () => {
-        console.log('[Category] Year filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(yearChangeTimeout);
+        yearChangeTimeout = setTimeout(() => {
+            console.log('[Category] Year filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('groupChatChanged', () => {
-        console.log('[Category] Group chat filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(groupChatChangeTimeout);
+        groupChatChangeTimeout = setTimeout(() => {
+            console.log('[Category] Group chat filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('dataUploaded', () => {
-        console.log('[Category] New data uploaded - clearing cache');
-        chartCache.clear();
+        clearTimeout(dataUploadTimeout);
+        dataUploadTimeout = setTimeout(() => {
+            console.log('[Category] New data uploaded - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.categoryPageCacheHandlersAttached = true;

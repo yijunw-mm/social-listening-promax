@@ -44,6 +44,9 @@
 
                 const brands = data.brand || [];
 
+                // Sort brands alphabetically
+                brands.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
                 selector.innerHTML = "";
 
                 brands.forEach(b => {
@@ -53,7 +56,7 @@
                     selector.appendChild(opt);
                 });
 
-                console.log("Brand dropdown populated:", brands);
+                console.log("Brand dropdown populated (alphabetically):", brands);
 
             } catch (err) {
                 console.error("Failed to populate brand dropdown:", err);
