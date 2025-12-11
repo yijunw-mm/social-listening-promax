@@ -312,67 +312,45 @@ def category_consumer_perception(category_name:str,
     }
 # --- keyword frequency ---
 
-# ---------- Helper: Extract context ----------
-def extract_category_context(df, brand_list, window_size=6, merge_overlap=True):
-    indices = []
-    for i, text in enumerate(df["clean_text"].dropna()):
-        t = text.lower()
-        if any(re.search(rf"\b{re.escape(b)}\b", t) for b in brand_list):
-            start = max(0, i - window_size)
-            end = min(len(df), i + window_size + 1)
-            indices.append((start, end))
-    if not indices:
-        return []
-
-    # Merge overlapping windows
-    if merge_overlap:
-        merged = []
-        current_start, current_end = indices[0]
-        for s, e in indices[1:]:
-            if s <= current_end:
-                current_end = max(current_end, e)
-            else:
-                merged.append((current_start, current_end))
-                current_start, current_end = s, e
-        merged.append((current_start, current_end))
-        indices = merged
-
-
-    # Collect context
-    contexts = []
-    for s, e in indices:
-        subset = df.iloc[s:e]
-        contexts.append(subset["clean_text"].tolist())
-    return [t for ctx in contexts for t in ctx]
-
-# ---------- Main API ----------
 @router.get("/category/keyword-frequency")
-def category_keyword_frequency(
+def category_keyword_frequency_sql(
     category_name: str,
     granularity: Literal["year", "month", "quarter"],
     time1: int,
     time2: int,
     group_id: Optional[List[str]] = Query(None),
-    group_year:Optional[List[int]]=Query(None),
-    window_size: int = 6,
-    merge_overlap: bool = True,
+    group_year: Optional[List[int]] = Query(None),
+    window_size: int = 6
 ):
-    brand_list, brand_category_map, brand_keyword_dict = build_brand_map()
-    # ---- 1. Identify brands in the category ----
+    # ---------- 1️⃣ 获取该类别的品牌和关键词 ----------
+    df_cat = load_cat_data()
+    brand_category_map = defaultdict(list)
+    for _, row in df_cat.iterrows():
+        brand = str(row["brand"]).strip().lower()
+        category = str(row["category"]).strip()
+        brand_category_map[brand].append(category)
+
+
     brand_in_category = [b for b, cats in brand_category_map.items() if category_name in cats]
     if not brand_in_category:
         return {"error": f"Category '{category_name}' not found or has no brands."}
 
-    # ---- 2. Merge all keywords for those brands ----
-    category_keywords = []
-    for b in brand_in_category:
-        category_keywords.extend(brand_keyword_dict.get(b, []))
-    category_keywords = list(set(category_keywords))
 
-    # ---- 3. Query chat data ----
-    query = "SELECT clean_text,year,month,quarter FROM chat WHERE clean_text IS NOT NULL"
+    # 合并所有关键词（去重）
+    brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
+    category_keywords = list({kw.lower().strip() for b in brand_in_category for kw in brand_keyword_dict.get(b, [])})
+
+
+    # ---------- 2️⃣ 查询聊天数据 ----------
+    query = """
+    SELECT 
+        group_id, year, month, quarter,
+        row_number() OVER (PARTITION BY group_id ORDER BY datetime) AS row_id,
+        clean_text
+    FROM chat 
+    WHERE clean_text IS NOT NULL
+    """
     params = []
-
     if group_year and not group_id:
         group_id = load_groups_by_year(group_year)
     if not group_id:
@@ -381,59 +359,103 @@ def category_keyword_frequency(
         query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
         params.extend(group_id)
 
+
     df = query_chat(query, params)
     if df.empty:
-        return {"category": category_name, "keywords": []}
+        return {"error": "No data available"}
 
-    df1 = filter_df(df,time1,granularity)
-    df2 = filter_df(df,time2,granularity)
-    def compute_kw_freq(df):
-        # ---- 4. Extract relevant text context ----
-        context_texts = extract_category_context(df, brand_in_category,
-                                                window_size=window_size,
-                                                merge_overlap=merge_overlap)
-        if not context_texts:
-            return {"category": category_name, "keywords": []}
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
 
-        # ---- 5. Count keyword frequency ----
-        freq_counter = Counter()
-        for text in context_texts:
-            #words = re.findall(r"\w+", text.lower())
-            t=text.lower()
-            for kw in category_keywords:
-                kw_lower=kw.lower().strip()
-                pattern = rf"(?<!\w){re.escape(kw_lower)}(s|es)?\b"
-                if re.search(pattern, t, flags=re.IGNORECASE):
-                #if kw_lower in words:
-                    freq_counter[kw_lower] += 1
-
-        # ---- 6. Fallback if no keywords ----
-        if not freq_counter:
-            all_words = " ".join(context_texts).split()
-            filtered_words = [w for w in all_words if w.isalpha() and len(w) > 2]
-            counter = Counter(filtered_words)
-            top_fallback = [{"keyword": w, "count": c} for w, c in counter.most_common(5)]
-            return {"category": category_name, "keywords": top_fallback}
+    # ---------- 3️⃣ 时间过滤 ----------
+    def filter_df(df, time):
+        if granularity == "year":
+            return df[df["year"] == time]
+        elif granularity == "month":
+            y, m = divmod(time, 100)
+            return df[(df["year"] == y) & (df["month"] == m)]
+        elif granularity == "quarter":
+            y, q = divmod(time, 10)
+            return df[(df["year"] == y) & (df["quarter"] == q)]
+        else:
+            raise ValueError("Invalid granularity")
 
 
-        #result = [{"keyword": kw, "count": freq} for kw, freq in freq_counter.items()]
-        #result.sort(key=lambda x: x["count"], reverse=True)
-        df_result = (
-        pd.DataFrame(list(freq_counter.items()), columns=["keyword", "count"])
-        .groupby("keyword", as_index=False)["count"].sum()
-        .sort_values("count", ascending=False)
-    )
-        # ---- format final output ----
-        result = df_result.to_dict(orient="records")
-        return {"total_mentions":len(context_texts),"keywords":result}
-    
+    # ---------- 4️⃣ SQL版上下文提取 + 去重 + keyword统计 ----------
+    def compute_kw_freq(df_subset):
+        if df_subset.empty:
+            return {"total_mentions": 0, "keywords": []}
+
+        duckdb.register("df_temp", df_subset)
+
+
+        brand_pattern = "|".join([re.escape(b.lower()) for b in brand_in_category])
+        keyword_values_sql = ", ".join([f"('{re.escape(k)}')" for k in category_keywords])
+
+        total_mentions = duckdb.sql(f"""
+            SELECT COUNT(*) AS total_mentions
+            FROM (
+                SELECT UNNEST(regexp_extract_all(lower(clean_text), '(?i)\\b({brand_pattern})\\b')) AS match
+            FROM df_temp) t
+        """).fetchone()[0]
+
+
+        query_sql = f"""
+        WITH brand_rows AS (
+            SELECT group_id, row_id
+            FROM df_temp
+            WHERE regexp_matches(lower(clean_text), '\\b({brand_pattern})\\b')
+        ),
+        context_rows AS (
+            SELECT 
+                c.group_id,
+                c.row_id,
+                lower(c.clean_text) AS clean_text,
+                COUNT(*) OVER (PARTITION BY c.group_id, c.row_id) AS overlap_count
+            FROM df_temp c
+            JOIN brand_rows b
+              ON c.group_id = b.group_id
+             AND c.row_id BETWEEN b.row_id - {window_size} AND b.row_id + {window_size}
+            QUALIFY overlap_count = 1
+        ),
+        keywords AS (
+            SELECT kw FROM (VALUES {keyword_values_sql}) AS t(kw)
+        )
+        SELECT 
+            k.kw AS keyword,
+            COUNT(*) AS count
+        FROM context_rows c
+        JOIN keywords k
+          ON regexp_matches(c.clean_text, k.kw)
+        WHERE NOT regexp_matches(c.clean_text, '\\b({brand_pattern})\\b')  -- remove brand name itself
+        GROUP BY k.kw
+        HAVING COUNT(*) > 0
+        ORDER BY count DESC
+        """
+
+        df_result = duckdb.sql(query_sql).df()
+        duckdb.unregister("df_temp")
+
+        
+        if df_result.empty:
+            return {"total_mentions": len(df_subset), "keywords": []}
+
+        return {
+            "total_mentions": int(total_mentions),
+            "keywords": df_result.to_dict(orient="records"),
+        }
+
+    # ---------- 5️⃣ 对比两个时间 ----------
+    df1 = filter_df(df, time1)
+    df2 = filter_df(df, time2)
+
     block1 = compute_kw_freq(df1)
     block2 = compute_kw_freq(df2)
+
     return {
         "category": category_name,
-        "granularity":granularity,
+        "granularity": granularity,
         "compare": {
             str(time1): block1,
-            str(time2): block2,
-        },
+            str(time2): block2
+        }
     }

@@ -23,7 +23,6 @@ def load_cat_data():
     df_cat = con.execute(query).fetchdf()
     con.close()
     return df_cat 
-
 def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
                           window_size: int = 6, merge_overlap: bool = True):
 
@@ -69,6 +68,68 @@ def extract_brand_context(df: pd.DataFrame, brand: str, brand_keyword_map: dict,
 
     return contexts
 
+def count_keywords_sql(
+    df_subset: pd.DataFrame,
+    brand: str,
+    all_keywords: list[str],
+    window_size: int = 6
+):
+    """extract context in sql + remove overlap + keyword counting"""
+    if df_subset.empty:
+        return [{"keyword": k, "count": 0} for k in all_keywords]
+
+
+    # register DuckDB temportary table
+    duckdb.register("df_temp", df_subset)
+
+
+    # 1.  SQL-safe regex pattern
+    brand_pattern = re.escape(brand.lower())
+    keyword_values_sql = ", ".join([f"('{re.escape(k.lower())}')" for k in all_keywords])
+
+
+    # 2. basic query：window chat + QUALIFY remove overlap+ keyword counting
+    query = f"""
+    WITH brand_rows AS (
+        SELECT 
+            group_id,
+            row_id
+        FROM df_temp
+        WHERE regexp_matches(lower(clean_text), '{brand_pattern}')
+    ),
+    context_rows AS (
+        SELECT 
+            c.group_id,
+            c.row_id,
+            lower(c.clean_text) AS clean_text,
+            COUNT(*) OVER (PARTITION BY c.group_id, c.row_id) AS overlap_count
+        FROM df_temp c
+        JOIN brand_rows b
+          ON c.group_id = b.group_id
+         AND c.row_id BETWEEN b.row_id - {window_size} AND b.row_id + {window_size}
+        QUALIFY overlap_count = 1
+    ),
+    keywords AS (
+        SELECT kw FROM (VALUES {keyword_values_sql}) AS t(kw)
+    )
+    SELECT 
+        k.kw AS keyword,
+        COUNT(*) AS count
+    FROM context_rows c
+    JOIN keywords k
+      ON regexp_matches(c.clean_text, k.kw)
+    GROUP BY k.kw
+    HAVING count >0 --only return keywords count>0
+    ORDER BY count DESC
+    """
+
+    df_result = duckdb.sql(query).df()
+    duckdb.unregister("df_temp")
+
+    return df_result.to_dict(orient="records")
+
+
+
 @router.get("/brand/time-compare/frequency")
 def compare_keyword_frequency(
     brand_name: str,
@@ -77,8 +138,7 @@ def compare_keyword_frequency(
     time2: int,
     group_id: Optional[List[str]] = Query(None),
     group_year:Optional[List[int]]=Query(None),
-    window_size: int =6,
-    merge_overlap:bool=True
+    window_size: int =6
 ):
     df_cat = load_cat_data()
     brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
@@ -114,6 +174,7 @@ def compare_keyword_frequency(
         return {"error": "No available data"}
     
     df["clean_text"] = df["clean_text"].fillna("").astype(str)
+
     # ---- 5. filter by each time ----
     def filter_df(df: pd.DataFrame, time: int):
         if granularity == "year":
@@ -125,43 +186,15 @@ def compare_keyword_frequency(
             y, q = divmod(time, 10)
             return df[(df["year"] == y) & (df["quarter"] == q)]
 
-
-    def count_keywords(df_subset):
-        contexts = extract_brand_context(
-            df_subset, brand=brand_name,
-            brand_keyword_map=brand_keyword_dict,
-            window_size=window_size,
-            merge_overlap=merge_overlap
-        )
-        if not contexts:
-            return {"error":f"No mention about brand {brand_name}"}
-        
-        context_texts = []
-        for c in contexts:
-            context_texts.extend(t for t in c["context"] if isinstance(t,str))
-        
-        # -- count frequency ---
-        freq_counter = Counter()
-        for text in context_texts:
-            t = text.lower()
-            for kw in all_keywords:
-                if re.search(rf"\b{re.escape(kw.lower())}\b", t):
-                    freq_counter[kw] += 1
-        if not freq_counter:
-            all_words = " ".join(context_texts).split()
-            filtered_words = [w for w in all_words if w.isalpha() and len(w)>2]
-            counter = Counter(filtered_words)
-            top_fallback = [{"keyword":w, "count":c} for w, c in counter.most_common(5)]
-            return top_fallback
-        #return dict(counter)
-        return [{"keyword":k,"count":v} for k,v in freq_counter.items()]
+    df1 = filter_df(df,time1)
+    df2 = filter_df(df,time2)
 
     return {
         "brand": brand_name,
         "granularity": granularity,
         "compare": {
-            str(time1): count_keywords(filter_df(df, time1)),
-            str(time2): count_keywords(filter_df(df, time2))
+            str(time1): count_keywords_sql(df1,brand_name,all_keywords,window_size),
+            str(time2): count_keywords_sql(df2,brand_name,all_keywords,window_size)
         }
     }
 
@@ -221,10 +254,14 @@ def category_share_of_voice_compare(
     if not brand_in_category:
         return {"error": f"category '{category_name}' not found"}
     # --- 2. basic query
-    query = """
+    pattern = "|".join([re.escape(b) for b in brand_in_category])
+    regex_sql = f"\\b({pattern})\\b"
+
+    query = f"""
     SELECT 
         group_id, clean_text, year, month, quarter
-    FROM chat WHERE clean_text IS NOT NULL"""
+    FROM chat WHERE clean_text IS NOT NULL
+        AND regexp_matches(clean_text,'{regex_sql}','i')"""
     params = []
     # ---- Default groups ----
     if group_year and not group_id:
