@@ -654,19 +654,32 @@ async function loadCooccurrenceData(keyword, granularity, time1, time2) {
 
 // Clear cache when global filters change (only register once)
 if (!window.generalPageCacheHandlersAttached) {
+    let yearChangeTimeout;
+    let groupChatChangeTimeout;
+    let dataUploadTimeout;
+
     window.addEventListener('yearChanged', () => {
-        console.log('[General] Year filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(yearChangeTimeout);
+        yearChangeTimeout = setTimeout(() => {
+            console.log('[General] Year filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('groupChatChanged', () => {
-        console.log('[General] Group chat filter changed - clearing cache');
-        chartCache.clear();
+        clearTimeout(groupChatChangeTimeout);
+        groupChatChangeTimeout = setTimeout(() => {
+            console.log('[General] Group chat filter changed - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.addEventListener('dataUploaded', () => {
-        console.log('[General] New data uploaded - clearing cache');
-        chartCache.clear();
+        clearTimeout(dataUploadTimeout);
+        dataUploadTimeout = setTimeout(() => {
+            console.log('[General] New data uploaded - clearing cache');
+            chartCache.clear();
+        }, 100);
     });
 
     window.generalPageCacheHandlersAttached = true;

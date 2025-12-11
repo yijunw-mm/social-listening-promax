@@ -60,40 +60,39 @@ def analyze_sentiment(texts):
     if not texts:
         return sentiment_result, detailed_examples
 
-    # check existing cach
+    # check existing cache
     cached_results = {}
     uncached_texts = []
     for text in texts:
         cached = get_cached_sentiment(text)
         if cached:
-            cached_results[text]=cached
+            cached_results[text] = cached
         else:
             uncached_texts.append(text)
-    preds=[]
+
+    # Only run model inference on uncached texts
     if uncached_texts:
-        preds = sentiment_model(texts, batch_size=32)
-        for i,text in enumerate(texts):
-            cached = get_cached_sentiment(text)
-            if cached:
-                sentiment = cached["sentiment"]
-                score = cached["score"]
-                rule = cached["rule_applied"]
-                print("cached hit")
-            else:
-                pred = preds[i][0]
-                sentiment = pred["label"].lower()
-                score = round(pred["score"],3)
-                rule = None
-                print("model inference")
-                final_sentiment = regex_override_label(text,sentiment)
-                if final_sentiment !=sentiment:
-                    rule = "regex overwrite"
-                save_sentiment_cache(text,final_sentiment,score,rule)
-                cached_results[text]={
-                    "sentiment":final_sentiment,
-                    "score":score,
-                    "rule_applied":rule
-                }
+        preds = sentiment_model(uncached_texts, batch_size=32)
+        for i, text in enumerate(uncached_texts):
+            pred = preds[i][0]
+            sentiment = pred["label"].lower()
+            score = round(pred["score"], 3)
+            rule = None
+            print("model inference")
+            final_sentiment = regex_override_label(text, sentiment)
+            if final_sentiment != sentiment:
+                rule = "regex overwrite"
+            save_sentiment_cache(text, final_sentiment, score, rule)
+            cached_results[text] = {
+                "sentiment": final_sentiment,
+                "score": score,
+                "rule_applied": rule
+            }
+
+    # Log cache hits (for visibility)
+    for text in texts:
+        if text not in uncached_texts:
+            print("cached hit")
     for text in texts:
         data = cached_results[text]
         sentiment_result[data["sentiment"]] += 1

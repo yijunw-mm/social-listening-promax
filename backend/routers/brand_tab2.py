@@ -216,24 +216,30 @@ def analyze_sentiment(texts,sentiment_model,regex_override_label):
             cached_results[text]=cached
         else:
             uncached_texts.append(text)
-    preds=[]
+    # Only run model inference on uncached texts
     if uncached_texts:
         preds = sentiment_model(uncached_texts, batch_size=32)
-        for i,text in enumerate(uncached_texts):
+        for i, text in enumerate(uncached_texts):
             pred = preds[i][0]
             sentiment = pred["label"].lower()
-            score = round(pred["score"],3)
+            score = round(pred["score"], 3)
             rule = None
             print("model inference")
-            final_sentiment = regex_override_label(text,sentiment)
-            if final_sentiment !=sentiment:
+            final_sentiment = regex_override_label(text, sentiment)
+            if final_sentiment != sentiment:
                 rule = "regex overwrite"
-            save_sentiment_cache(text,final_sentiment,score,rule)
-            cached_results[text]={
-                "sentiment":final_sentiment,
-                "score":score,
-                "rule_applied":rule
+            save_sentiment_cache(text, final_sentiment, score, rule)
+            cached_results[text] = {
+                "sentiment": final_sentiment,
+                "score": score,
+                "rule_applied": rule
             }
+
+    # Log cache hits (for visibility)
+    for text in texts:
+        if text not in uncached_texts:
+            print("cached hit")
+
     for text in texts:
         data = cached_results[text]
         sentiment_result[data["sentiment"]] += 1
