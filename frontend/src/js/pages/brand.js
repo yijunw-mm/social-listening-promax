@@ -696,7 +696,10 @@ export function initTimeKeywordManagement() {
     }
 
     // Handle add keyword
-    addBtn.addEventListener('click', async () => {
+    addBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const keyword = keywordInput.value.trim();
         if (!keyword) return;
 
@@ -737,6 +740,8 @@ export function initTimeKeywordManagement() {
     // Handle Enter key in input field
     keywordInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
             addBtn.click();
         }
     });
@@ -769,11 +774,13 @@ async function displayTimeCustomKeywords(brandName) {
             tag.className = 'flex items-center gap-2 bg-[#C990B8] text-white px-3 py-1 rounded-full text-sm';
             tag.innerHTML = `
                 <span>${keyword}</span>
-                <button class="hover:text-red-300 font-bold" data-keyword="${keyword}">×</button>
+                <button type="button" class="hover:text-red-300 font-bold" data-keyword="${keyword}">×</button>
             `;
 
             // Add remove handler
             tag.querySelector('button').addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 const keywordToRemove = e.target.getAttribute('data-keyword');
                 await removeTimeKeyword(brandName, keywordToRemove);
             });
@@ -786,31 +793,40 @@ async function displayTimeCustomKeywords(brandName) {
 }
 
 async function removeTimeKeyword(brandName, keyword) {
+    console.log(`[removeTimeKeyword] Starting removal of keyword: ${keyword} for brand: ${brandName}`);
     try {
-        await remove_brand_words({ brand_name: brandName, keyword: keyword });
-        console.log(`Removed keyword: ${keyword} for brand: ${brandName}`);
+        const response = await remove_brand_words({ brand_name: brandName, keyword: keyword });
+        console.log(`[removeTimeKeyword] API response:`, response);
 
         // Remove from localStorage
         removeTimeCustomKeyword(brandName, keyword);
+        console.log(`[removeTimeKeyword] Removed from localStorage`);
 
         // Clear cache to force fresh data fetch without removed keyword
         chartCache.clear('keywordCompareChart');
-        console.log('[Remove Keyword] Cleared cache for keywordCompareChart');
+        console.log('[removeTimeKeyword] Cleared cache for keywordCompareChart');
 
         // Reload chart if there's data to compare
         const granularity = document.getElementById('keywordGranularitySelector')?.value;
         const time1 = document.getElementById('keywordTime1Input')?.value.trim();
         const time2 = document.getElementById('keywordTime2Input')?.value.trim();
 
+        console.log(`[removeTimeKeyword] Chart params:`, { granularity, time1, time2 });
+
         if (granularity && time1 && time2) {
+            console.log(`[removeTimeKeyword] Reloading chart...`);
             await loadKeywordComparison(brandName, granularity, time1, time2);
+        } else {
+            console.log(`[removeTimeKeyword] Skipping chart reload - missing parameters`);
         }
 
         // Update display
+        console.log(`[removeTimeKeyword] Updating keyword tags display...`);
         displayTimeCustomKeywords(brandName);
+        console.log(`[removeTimeKeyword] Removal complete`);
     } catch (err) {
-        console.error('Error removing keyword:', err);
-        alert('Failed to remove keyword. Please try again.');
+        console.error('[removeTimeKeyword] Error removing keyword:', err);
+        alert('Failed to remove keyword: ' + err.message);
     }
 }
 
@@ -1092,12 +1108,16 @@ export function initBrandKeywordFilter() {
     // Handle Enter key to hide word
     filterInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
             hideBtn.click();
         }
     });
 
     // Handle Hide button click
-    hideBtn.addEventListener('click', async () => {
+    hideBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const input = filterInput.value.trim();
         if (!input) return;
 
@@ -1161,11 +1181,13 @@ function displayBrandHiddenWords() {
         tag.className = 'flex items-center gap-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm';
         tag.innerHTML = `
             <span>${word}</span>
-            <button class="hover:text-red-300 font-bold" data-word="${word}">×</button>
+            <button type="button" class="hover:text-red-300 font-bold" data-word="${word}">×</button>
         `;
 
         // Add remove handler
         tag.querySelector('button').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const wordToRemove = e.target.getAttribute('data-word');
             removeBrandHiddenWord(wordToRemove);
         });
@@ -1224,12 +1246,17 @@ export function initBrandPerceptionFilter() {
     // Handle Enter key to hide word
     filterInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
             hideBtn.click();
         }
     });
 
     // Handle Hide button click
-    hideBtn.addEventListener('click', () => {
+    hideBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const input = filterInput.value.trim();
         if (!input) return;
 
@@ -1272,11 +1299,13 @@ function displayBrandPerceptionHiddenWords() {
         tag.className = 'flex items-center gap-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm';
         tag.innerHTML = `
             <span>${word}</span>
-            <button class="hover:text-red-300 font-bold" data-word="${word}">×</button>
+            <button type="button" class="hover:text-red-300 font-bold" data-word="${word}">×</button>
         `;
 
         // Add remove handler
         tag.querySelector('button').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const wordToRemove = e.target.getAttribute('data-word');
             removeBrandPerceptionHiddenWord(wordToRemove);
         });
