@@ -48,12 +48,16 @@ def keyword_frequency(granularity: Literal["year", "month", "quarter"],
         group_id = load_groups_by_year(group_year) 
     if not group_id and not stage:
         group_id = load_default_groups()
-       
+
+    pattern = "|".join([re.escape(b) for b in keyword_list])
+    regex_sql = f"\\b({pattern})\\b"
+
     #-- base query --
-    query = """
+    query = f"""
         SELECT clean_text, year, month, quarter
         FROM chat
-        WHERE 1=1
+        WHERE clean_text IS NOT NULL 
+        AND regexp_matches(lower(clean_text),'{regex_sql}','i')
         """
     params =[]
     #filter by group_id
@@ -74,21 +78,25 @@ def keyword_frequency(granularity: Literal["year", "month", "quarter"],
     df1 = filter_df(df,time1,granularity)
     df2 = filter_df(df,time2,granularity)
 
-    def compute_keyword_freq(df):
-        if df.empty:
-            return {"keywords": []}
+    def count_kw(texts, keywords):
+        counter = Counter()
+        for text in texts:
+            t = text.lower()
+            for kw in keywords:
+                counter[kw] += len(re.findall(rf"\b{re.escape(kw)}(s|es)?\b", t))
+        return counter
 
-        # --- 3. Keyword frequency calculation --- #
-        all_text = " ".join(df["clean_text"].dropna().astype(str).tolist())
-        keyword_counts=Counter()
-        for kw in keyword_list:
-            keyword_counts[kw]=len(re.findall(rf"\b{re.escape(kw)}(s|es)?\b",all_text))
+    def compute_block(df_subset):
+        if df_subset.empty:
+            return {"total_mentions": 0, "keywords": []}
 
-        # --- 4. Return result --- #
-        return [{"keyword": k, "count": int(v)} for k, v in keyword_counts.items() if v>0]
+        counts = count_kw(df_subset["clean_text"].dropna().tolist(), keyword_list)
+        result = [{"keyword": k, "count": v} for k, v in counts.items() if v > 0]
+        result.sort(key=lambda x: x["count"], reverse=True)
+        return result
 
-    block1 = compute_keyword_freq(df1)
-    block2 = compute_keyword_freq(df2)
+    block1 = compute_block(df1)
+    block2 = compute_block(df2)
     return {
         "granularity":granularity,
         "compare":{

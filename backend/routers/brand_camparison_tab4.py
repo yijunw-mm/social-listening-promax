@@ -212,9 +212,9 @@ def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
 
     # Step 3️⃣ POS keep noun, adj
     def is_meaningful(phrase):
-        docs = list(nlp.pipe(keywords,disable=["ner"]))
-        keywords = [kw for kw,doc in zip(keywords,docs)
-                if any(t.pos_ in ["ADJ", "NOUN"] for t in doc)]
+        doc = nlp(phrase)
+        return any(t.pos_ in ["ADJ", "NOUN"] for t in doc)
+    keywords = [kw for kw in keywords if is_meaningful(kw)]
 
     # Step 4️⃣ calculate semantic centre
     if not keywords:
@@ -322,7 +322,7 @@ def category_keyword_frequency_sql(
     group_year: Optional[List[int]] = Query(None),
     window_size: int = 6
 ):
-    # ---------- 1️⃣ 获取该类别的品牌和关键词 ----------
+    # ---------- 1. get keyword ----------
     df_cat = load_cat_data()
     brand_category_map = defaultdict(list)
     for _, row in df_cat.iterrows():
@@ -336,12 +336,12 @@ def category_keyword_frequency_sql(
         return {"error": f"Category '{category_name}' not found or has no brands."}
 
 
-    # 合并所有关键词（去重）
+    # deduplicated 
     brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
     category_keywords = list({kw.lower().strip() for b in brand_in_category for kw in brand_keyword_dict.get(b, [])})
 
 
-    # ---------- 2️⃣ 查询聊天数据 ----------
+    # ---------- 2. load chat ----------
     query = """
     SELECT 
         group_id, year, month, quarter,
@@ -366,7 +366,7 @@ def category_keyword_frequency_sql(
 
     df["clean_text"] = df["clean_text"].fillna("").astype(str)
 
-    # ---------- 3️⃣ 时间过滤 ----------
+    # ---------- 3. filter time ----------
     def filter_df(df, time):
         if granularity == "year":
             return df[df["year"] == time]
@@ -380,7 +380,7 @@ def category_keyword_frequency_sql(
             raise ValueError("Invalid granularity")
 
 
-    # ---------- 4️⃣ SQL版上下文提取 + 去重 + keyword统计 ----------
+    # ---------- 4. SQL context extract + keyword counting ----------
     def compute_kw_freq(df_subset):
         if df_subset.empty:
             return {"total_mentions": 0, "keywords": []}
@@ -444,7 +444,7 @@ def category_keyword_frequency_sql(
             "keywords": df_result.to_dict(orient="records"),
         }
 
-    # ---------- 5️⃣ 对比两个时间 ----------
+    # ---------- 5. compare  ----------
     df1 = filter_df(df, time1)
     df2 = filter_df(df, time2)
 
@@ -458,4 +458,176 @@ def category_keyword_frequency_sql(
             str(time1): block1,
             str(time2): block2
         }
+    }
+
+# ---------- Helper Function ----------
+def count_keywords_sql(
+    df_subset: pd.DataFrame,
+    brand: str,
+    all_keywords: list[str],
+    window_size: int = 6
+):
+    """
+    SQL version: extract context window ±N lines for one brand (shared context, no QUALIFY)
+    Count keyword frequencies within that context.
+    """
+    if df_subset.empty:
+        return []
+
+    duckdb.register("df_temp", df_subset)
+
+    # 1️⃣ SQL-safe regex patterns
+    brand_pattern = re.escape(brand.lower())
+    keyword_values_sql = ", ".join([f"('{re.escape(k.lower())}')" for k in all_keywords])
+
+    # 2️⃣ Context extraction + keyword counting (no QUALIFY)
+    query = f"""
+    WITH brand_rows AS (
+        SELECT 
+            group_id, 
+            row_id
+        FROM df_temp
+        WHERE regexp_matches(lower(clean_text), '{brand_pattern}')
+    ),
+    context_rows AS (
+        SELECT DISTINCT
+            c.group_id,
+            c.row_id,
+            lower(c.clean_text) AS clean_text
+        FROM df_temp c
+        JOIN brand_rows b
+          ON c.group_id = b.group_id
+         AND c.row_id BETWEEN b.row_id - {window_size} AND b.row_id + {window_size}
+    ),
+    keywords AS (
+        SELECT kw FROM (VALUES {keyword_values_sql}) AS t(kw)
+    )
+    SELECT
+        k.kw AS keyword,
+        COUNT(*) AS count
+    FROM context_rows c
+    JOIN keywords k
+      ON regexp_matches(c.clean_text, '(?i)\\b(' || k.kw || ')(s|es)?\\b')
+    GROUP BY k.kw
+    HAVING count > 0
+    ORDER BY count DESC
+    """
+
+    df_result = duckdb.sql(query).df()
+    duckdb.unregister("df_temp")
+
+    return df_result.to_dict(orient="records")
+
+
+# ---------- Main API ----------
+@router.get("/category/time-compare/keyword-frequency")
+def category_keyword_frequency_sql(
+    category_name: str,
+    granularity: Literal["year", "month", "quarter"],
+    time1: int,
+    time2: int,
+    group_id: Optional[List[str]] = Query(None),
+    group_year: Optional[List[int]] = Query(None),
+    window_size: int = 6
+):
+    """
+    For a given category:
+    - Find all brands under it
+    - For each brand, extract chat context ±window_size
+    - Match brand-specific keywords using SQL regex
+    - Merge all brand results into category-level frequency
+    """
+
+    # ---------- 1️⃣ 获取类别下所有品牌 ----------
+    df_cat = load_cat_data()  # your existing helper
+    brand_category_map = defaultdict(list)
+    for _, row in df_cat.iterrows():
+        brand = str(row["brand"]).strip().lower()
+        category = str(row["category"]).strip()
+        brand_category_map[brand].append(category)
+
+    brand_in_category = [b for b, cats in brand_category_map.items() if category_name in cats]
+    if not brand_in_category:
+        return {"error": f"Category '{category_name}' not found or has no brands."}
+
+    # ---------- 2️⃣ 获取该类别下所有品牌关键词 ----------
+    brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
+
+    # ---------- 3️⃣ 载入聊天数据 ----------
+    query = """
+        SELECT 
+            group_id, year, month, quarter,
+            row_number() OVER (PARTITION BY group_id ORDER BY datetime) AS row_id,
+            clean_text
+        FROM chat
+        WHERE clean_text IS NOT NULL
+    """
+    params = []
+    if group_year and not group_id:
+        group_id = load_groups_by_year(group_year)
+    if not group_id:
+        group_id = load_default_groups()
+    if group_id:
+        query += " AND group_id IN (" + ",".join(["?"] * len(group_id)) + ")"
+        params.extend(group_id)
+
+    df = query_chat(query, params)
+    if df.empty:
+        return {"error": "No data available"}
+
+    df["clean_text"] = df["clean_text"].fillna("").astype(str)
+
+    # ---------- 4️⃣ 时间过滤 ----------
+    def filter_df(df, time):
+        if granularity == "year":
+            return df[df["year"] == time]
+        elif granularity == "month":
+            y, m = divmod(time, 100)
+            return df[(df["year"] == y) & (df["month"] == m)]
+        elif granularity == "quarter":
+            y, q = divmod(time, 10)
+            return df[(df["year"] == y) & (df["quarter"] == q)]
+        else:
+            raise ValueError("Invalid granularity")
+
+    # ---------- 5️⃣ 分类聚合 ----------
+    def compute_category(df_subset):
+        all_counts = []
+        for brand in brand_in_category:
+            brand_keywords = brand_keyword_dict.get(brand, [])
+            if not brand_keywords:
+                continue
+            result = count_keywords_sql(df_subset, brand, brand_keywords, window_size)
+            for r in result:
+                all_counts.append(r)
+
+        if not all_counts:
+            return {"total_mentions": 0, "keywords": []}
+
+        df_merge = (
+            pd.DataFrame(all_counts)
+            .groupby("keyword", as_index=False)["count"].sum()
+            .sort_values("count", ascending=False)
+        )
+
+        total_mentions = df_merge["count"].sum()
+        return {
+            "total_mentions": int(total_mentions),
+            "keywords": df_merge.to_dict(orient="records"),
+        }
+
+    # ---------- 6️⃣ 两个时间段对比 ----------
+    df1 = filter_df(df, time1)
+    df2 = filter_df(df, time2)
+
+    block1 = compute_category(df1)
+    block2 = compute_category(df2)
+
+    return {
+        "category": category_name,
+        "granularity": granularity,
+        "compare": {
+            str(time1): block1,
+            str(time2): block2,
+        },
     }

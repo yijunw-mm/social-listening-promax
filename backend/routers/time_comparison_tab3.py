@@ -4,6 +4,9 @@ import pandas as pd
 from collections import Counter, defaultdict
 import json, duckdb
 import re
+from sentence_transformers import SentenceTransformer, util
+import spacy
+from backend.model_loader import kw_model,encoder
 from backend.routers.brand_tab2 import custom_keywords_dict
 from backend.data_loader import query_chat, load_default_groups,load_groups_by_year
 
@@ -322,6 +325,80 @@ def category_share_of_voice_compare(
     return result
 
 #------consumer perception--------
+nlp = spacy.load("en_core_web_sm",disable=["ner"])
+
+def _overlap_fraction(a, b):
+    """calculate the overlap percentage between two phrases token"""
+    set_a, set_b = set(a.split()), set(b.split())
+    if not set_a or not set_b:
+        return 0
+    return len(set_a & set_b) / min(len(set_a), len(set_b))
+
+def remove_overlapping_phrases(keywords, overlap_ratio=0.6):
+    """
+    remove the overlap part（like "sensitive skin" vs "kids sensitive skin"）。
+    overlap_ratio: 0.6。
+    """
+    cleaned = []
+    for kw in sorted(keywords, key=len, reverse=True):  # from long to short
+        if not any(_overlap_fraction(kw, c) > overlap_ratio for c in cleaned):
+            cleaned.append(kw)
+    return cleaned[::-1]  # keep the original order
+
+def extract_clean_brand_keywords_auto(texts, brand_name, top_k=15):
+    """
+    extract meaningful word
+    """
+    if not texts:
+        return []
+
+    # Step 1️⃣ remove the brand name itself
+    cleaned_texts = [re.sub(rf"\b{re.escape(brand_name)}\b", "", t.lower()) for t in texts]
+    joined_text = " ".join(cleaned_texts)
+
+    # Step 2️⃣ KeyBERT extrat keyword
+    keywords = []
+    for chunk_start in range(0,len(texts),200):
+        chunk = " ".join(texts[chunk_start:chunk_start+200])
+        chunk_keywords = [kw for kw, _ in kw_model.extract_keywords(
+            chunk,
+            keyphrase_ngram_range=(1, 3),
+            use_mmr=True,
+            diversity=0.7,
+            top_n=top_k*3,
+            stop_words='english'
+        )]
+        keywords.extend(chunk_keywords)
+
+    # Step 3️⃣ POS keep noun, adj
+    def is_meaningful(phrase):
+        doc = nlp(phrase)
+        return any(t.pos_ in ["ADJ", "NOUN"] for t in doc)
+    keywords = [kw for kw in keywords if is_meaningful(kw)]
+
+    # Step 4️⃣ calculate semantic centre
+    if not keywords:
+        return []
+    kw_emb = encoder.encode(keywords, convert_to_tensor=True)
+    centroid = kw_emb.mean(dim=0, keepdim=True)
+
+    # Step 5️⃣ calculate similarity of each word and the centre
+    sims = util.cos_sim(kw_emb, centroid).flatten()
+    filtered_keywords = [kw for kw, sim in zip(keywords, sims) if sim > 0.3]
+    #new_add
+    filtered_keywords = remove_overlapping_phrases(filtered_keywords,overlap_ratio=0.5)
+
+    # Step 6️⃣ count the frequency in original text
+    counts = Counter()
+    for text in texts:
+        t = text.lower()
+        for kw in filtered_keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", t):
+                counts[kw] += 1
+
+    results = [{"word": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[1], reverse=True)]
+    return results
+
 @router.get("/brand/time-compare/consumer-perception")
 def compare_consumer_perception(
     brand_name: str,
@@ -331,8 +408,6 @@ def compare_consumer_perception(
     group_id: Optional[List[str]] = Query(None),
     group_year:Optional[List[int]]=Query(None),
     top_k: int = 20,
-    window_size: int = 6,
-    merge_overlap: bool = True
 ):  
     df_cat=load_cat_data()
     brand_keyword_dict = df_cat.groupby("brand")["keyword"].apply(list).to_dict()
@@ -372,41 +447,32 @@ def compare_consumer_perception(
             y, q = divmod(time, 10)
             return df[(df["year"] == y) & (df["quarter"] == q)]
 
-    def get_associated_words(df_subset):
-        contexts = extract_brand_context(
-            df_subset,
-            brand=brand_name,
-            brand_keyword_map=brand_keyword_dict,
-            window_size=window_size,
-            merge_overlap=merge_overlap
+    def compute_consumer_perception(df_subset):
+        relevant_texts = (
+            df_subset["clean_text"]
+            .astype(str)
+            .loc[lambda s: s.str.contains(rf"\b{re.escape(brand_name)}\b", case=False, na=False)]
+            .tolist()
         )
 
-        if not contexts:
+        if not relevant_texts:
             return {"error": f"No mention about brand {brand_name}", "associated_words": []}
 
-        context_texts = []
-        for c in contexts:
-            context_texts.extend(t for t in c["context"] if isinstance(t, str))
+        associated_words = extract_clean_brand_keywords_auto(
+            relevant_texts,
+            brand_name,
+            top_k=top_k
+        )
 
-        # Extract words excluding brand keywords
-        all_words = []
-        brand_keywords_lower = [kw.lower() for kw in brand_keyword_dict[brand_name]]
+        # Step 6️⃣ print result
+        return {"associated_words": associated_words}
 
-        for text in context_texts:
-            words = re.findall(r"\w+", text.lower())
-            filtered = [w for w in words if w not in brand_keywords_lower and len(w) > 2 and w.isalpha()]
-            all_words.extend(filtered)
-
-        word_counter = Counter(all_words)
-        top_words = [{"word": w, "count": c} for w, c in word_counter.most_common(top_k)]
-
-        return {"associated_words": top_words}
-
+        
     return {
         "brand": brand_name,
         "granularity": granularity,
         "compare": {
-            str(time1): get_associated_words(filter_df(df, time1)),
-            str(time2): get_associated_words(filter_df(df, time2))
+            str(time1): compute_consumer_perception(filter_df(df, time1)),
+            str(time2): compute_consumer_perception(filter_df(df, time2))
         }
     }
