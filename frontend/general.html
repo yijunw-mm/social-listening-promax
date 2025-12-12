@@ -56,8 +56,11 @@
                     <!-- Keyword Frequency Chart -->
                     <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
                         <div class="flex justify-between items-center mb-4 border-b border-[#3d4456] pb-2">
-                            <div class="text-white font-semibold text-lg">
-                                Keyword Frequency
+                            <div>
+                                <div class="text-white font-semibold text-lg">
+                                    Keyword Frequency
+                                </div>
+                                <p class="text-gray-400 text-sm mt-1">This chart shows default keyword count in whole group chat. You can also see context of each keyword.</p>
                             </div>
                             <button id="analyzeKeywordFreqBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-1 rounded text-sm font-semibold transition">
                                 Analyze
@@ -182,11 +185,14 @@
                         </div>
                     </div>
 
-                    <!-- New Keywords Prediction Chart -->
+                    <!-- Trend Analysis Chart -->
                     <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
                         <div class="flex justify-between items-center mb-4 border-b border-[#3d4456] pb-2">
-                            <div class="text-white font-semibold text-lg">
-                                New Keywords Prediction
+                            <div>
+                                <div class="text-white font-semibold text-lg">
+                                    Trend Analysis
+                                </div>
+                                <p class="text-gray-400 text-sm mt-1">This chart analyzes which words/topics are meaningful to the whole group chat.</p>
                             </div>
                             <button id="analyzeNewKeywordsBtn" class="bg-[#C990B8] hover:bg-[#c967ac] text-white px-4 py-1 rounded text-sm font-semibold transition">
                                 Analyze
@@ -265,6 +271,12 @@
                     const time1 = document.getElementById('keywordFreqTime1Input').value.trim();
                     const time2 = document.getElementById('keywordFreqTime2Input').value.trim();
                     console.log('Analyzing Keyword Frequency...', { granularity, time1, time2 });
+
+                    // Sync co-occurrence time periods with keyword frequency
+                    document.getElementById('cooccurrenceGranularitySelector').value = granularity;
+                    document.getElementById('cooccurrenceTime1Input').value = time1;
+                    document.getElementById('cooccurrenceTime2Input').value = time2;
+
                     await loadKeywordFrequencyData(granularity, time1, time2);
                 });
 

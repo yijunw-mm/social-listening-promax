@@ -308,6 +308,21 @@ async function update_time_compare_sentiment(payload) {
     return await response.json();
 }
 
+//time-compare consumer perception by brand
+async function get_time_compare_brand_consumer_perception(params = {}) {
+    const url = buildURL('/brand/time-compare/consumer-perception', params);
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+}
+
 //category keyword frequency (category-level data for Consumer Perception tab)
 async function get_category_keyword_frequency(params = {}) {
     const url = buildURL('/category/keyword-frequency', params);
@@ -629,6 +644,7 @@ export {
     get_time_compare_frequency,
     get_time_compare_sentiment,
     update_time_compare_sentiment,
+    get_time_compare_brand_consumer_perception,
     get_time_compare_share_of_voice,
     get_share_of_voice,
     get_category_keyword_frequency,

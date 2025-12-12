@@ -23,6 +23,9 @@ export function renderAdminPage() {
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Add Brand
             </div>
+            <div class="text-gray-400 mb-6">
+                Add a new brand to the database by specifying its category. This will create a new brand entry that can be tracked across all analytics.
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="text" id="categoryName" placeholder="Category Name"
                     class="bg-[#1f252f] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-purple-400">
@@ -40,6 +43,9 @@ export function renderAdminPage() {
         <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Add Brand Keyword
+            </div>
+            <div class="text-gray-400 mb-6">
+                Add custom keywords to associate with a specific brand. These keywords will be tracked in the keyword frequency analysis for this brand.
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="text" id="keywordBrandName" placeholder="Brand Name"
@@ -59,6 +65,9 @@ export function renderAdminPage() {
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Add Category
             </div>
+            <div class="text-gray-400 mb-6">
+                Create a new category for organizing brands. Categories help group related brands together for better organization and analysis.
+            </div>
             <div class="grid grid-cols-1 gap-4">
                 <input type="text" id="newCategoryName" placeholder="Category Name"
                     class="bg-[#1f252f] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-purple-400">
@@ -74,6 +83,9 @@ export function renderAdminPage() {
         <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Add Slang
+            </div>
+            <div class="text-gray-400 mb-6">
+                Map informal slang terms to their formal equivalents. This helps the system recognize and normalize different variations of the same word in conversations.
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="text" id="slangFormal" placeholder="Formal"
@@ -93,6 +105,9 @@ export function renderAdminPage() {
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Add General Keyword
             </div>
+            <div class="text-gray-400 mb-6">
+                Add general keywords to track across all brands and categories. These keywords appear in the general keyword analysis charts.
+            </div>
             <div class="grid grid-cols-1 gap-4">
                 <input type="text" id="generalKeyword" placeholder="General Word"
                     class="bg-[#1f252f] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-purple-400">
@@ -109,6 +124,9 @@ export function renderAdminPage() {
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Remove Brand
             </div>
+            <div class="text-gray-400 mb-6">
+                Permanently remove a brand from the database. This will delete all associated data including keywords and analytics for this brand.
+            </div>
             <div class="grid grid-cols-1 gap-4">
                 <input type="text" id="removeBrandName" placeholder="Brand Name"
                     class="bg-[#1f252f] text-white border border-[#3d4456] rounded px-4 py-2 focus:outline-none focus:border-purple-400">
@@ -124,6 +142,9 @@ export function renderAdminPage() {
         <div class="bg-[#2a3142] border border-[#3d4456] rounded-lg p-6 shadow-lg mb-6">
             <div class="text-white font-semibold text-lg mb-4 border-b border-[#3d4456] pb-2">
                 Remove Brand Keyword
+            </div>
+            <div class="text-gray-400 mb-6">
+                Remove a specific keyword from a brand's tracking list. This will stop tracking this keyword in the brand's keyword frequency analysis.
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="text" id="removeKeywordBrandName" placeholder="Brand Name"

@@ -2,8 +2,9 @@ import {
     get_time_compare_frequency,
     get_time_compare_sentiment,
     update_time_compare_sentiment,
-    add_brand_keyword,
-    remove_brand_keyword
+    get_time_compare_brand_consumer_perception,
+    add_brand_words,
+    remove_brand_words
 } from '../api/api.js';
 
 import chartCache from '../chartCache.js';
@@ -14,6 +15,12 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
 }
 
 let chartInstances = {};
+
+// Set to track hidden keywords for brand keyword frequency chart
+let hiddenBrandKeywords = new Set();
+
+// Set to track hidden words for brand consumer perception chart
+let hiddenBrandPerceptionWords = new Set();
 
 // Helper function to get filter parameters (years and group_id)
 function getFilterParams(additionalParams = {}) {
@@ -92,6 +99,11 @@ export async function loadKeywordComparisonData(brandName, granularity, time1, t
 export async function loadSentimentComparisonData(brandName, granularity, time1, time2) {
     console.log('Loading sentiment comparison data:', { brandName, granularity, time1, time2 });
     await loadSentimentComparison(brandName, granularity, time1, time2);
+}
+
+export async function loadBrandPerceptionComparisonData(brandName, granularity, time1, time2) {
+    console.log('Loading brand consumer perception data:', { brandName, granularity, time1, time2 });
+    await loadBrandPerceptionComparison(brandName, granularity, time1, time2);
 }
 
 async function loadKeywordComparison(brandName, granularity, time1, time2) {
@@ -216,6 +228,50 @@ async function loadSentimentComparison(brandName, granularity, time1, time2) {
     }
 }
 
+async function loadBrandPerceptionComparison(brandName, granularity, time1, time2) {
+    const canvasId = 'brandPerceptionCompareChart';
+    const loadingOverlay = document.getElementById(`loadingOverlay-${canvasId}`);
+
+    try {
+        const params = getFilterParams({
+            brand_name: brandName,
+            granularity: granularity,
+            time1: time1,
+            time2: time2
+        });
+
+        // Check cache first
+        const cachedData = chartCache.get(canvasId, params);
+        if (cachedData) {
+            console.log('Using cached data for brand consumer perception');
+            renderBrandPerceptionComparisonChart(canvasId, cachedData, time1, time2);
+            return;
+        }
+
+        // Not in cache, show loading and fetch data
+        if (loadingOverlay) loadingOverlay.classList.add('active');
+
+        const data = await get_time_compare_brand_consumer_perception(params);
+
+        console.log('Brand consumer perception data:', data);
+
+        if (data.error) {
+            showNoDataMessage(canvasId, data.error);
+            return;
+        }
+
+        // Cache the data
+        chartCache.set(canvasId, params, data);
+
+        renderBrandPerceptionComparisonChart(canvasId, data, time1, time2);
+    } catch (err) {
+        console.error('Error loading brand consumer perception:', err);
+        showNoDataMessage(canvasId, 'Error loading data');
+    } finally {
+        if (loadingOverlay) loadingOverlay.classList.remove('active');
+    }
+}
+
 // Chart Rendering Functions
 function renderKeywordComparisonChart(canvasId, data, time1, time2) {
     console.log('=== renderKeywordComparisonChart called ===');
@@ -258,8 +314,11 @@ function renderKeywordComparisonChart(canvasId, data, time1, time2) {
     const time1Map = Object.fromEntries(time1Data.map(item => [item.keyword, item.count]));
     const time2Map = Object.fromEntries(time2Data.map(item => [item.keyword, item.count]));
 
+    // Filter out hidden keywords
+    const filteredKeywords = Array.from(allKeywords).filter(kw => !hiddenBrandKeywords.has(kw.toLowerCase()));
+
     // Sort keywords by total count (sum of both periods) in descending order
-    const keywords = Array.from(allKeywords).sort((a, b) => {
+    const keywords = filteredKeywords.sort((a, b) => {
         const totalA = (time1Map[a] || 0) + (time2Map[a] || 0);
         const totalB = (time1Map[b] || 0) + (time2Map[b] || 0);
         return totalB - totalA;
@@ -484,6 +543,128 @@ function renderSentimentComparisonChart(canvasId, data, time1, time2) {
     });
 }
 
+function renderBrandPerceptionComparisonChart(canvasId, data, time1, time2) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const compare = data.compare;
+
+    const time1Data = compare[time1];
+    const time2Data = compare[time2];
+
+    // Handle error cases
+    if (!time1Data || !time2Data || time1Data.error || time2Data.error) {
+        showNoDataMessage(canvasId, time1Data?.error || time2Data?.error || 'No consumer perception data');
+        return;
+    }
+
+    // Extract associated words from both time periods
+    const words1 = time1Data.associated_words || [];
+    const words2 = time2Data.associated_words || [];
+
+    // Combine all unique words
+    const allWords = new Set();
+    const wordCounts = {};
+
+    words1.forEach(item => {
+        allWords.add(item.word);
+        wordCounts[item.word] = { time1: item.count || 0, time2: 0 };
+    });
+
+    words2.forEach(item => {
+        allWords.add(item.word);
+        if (wordCounts[item.word]) {
+            wordCounts[item.word].time2 = item.count || 0;
+        } else {
+            wordCounts[item.word] = { time1: 0, time2: item.count || 0 };
+        }
+    });
+
+    // Filter out hidden words
+    const filteredWords = Array.from(allWords).filter(word => !hiddenBrandPerceptionWords.has(word.toLowerCase()));
+
+    // Sort by total count and take top 20
+    const sortedWords = filteredWords.sort((a, b) => {
+        const totalA = wordCounts[a].time1 + wordCounts[a].time2;
+        const totalB = wordCounts[b].time1 + wordCounts[b].time2;
+        return totalB - totalA;
+    }).slice(0, 20);
+
+    // Prepare datasets
+    const dataset1 = sortedWords.map(word => wordCounts[word].time1);
+    const dataset2 = sortedWords.map(word => wordCounts[word].time2);
+
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+    chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sortedWords,
+            datasets: [
+                {
+                    label: `${time1}`,
+                    data: dataset1,
+                    backgroundColor: '#48b7e3ff'
+                },
+                {
+                    label: `${time2}`,
+                    data: dataset2,
+                    backgroundColor: '#2c4ea6ff'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#9ca3af' }
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    color: '#9ca3af',
+                    font: {
+                        weight: 'bold',
+                        size: 10
+                    },
+                    formatter: function(value) {
+                        return value > 0 ? value : '';
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Associated Words',
+                        color: '#9ca3af',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    ticks: {
+                        color: '#9ca3af',
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: { color: '#3d4456' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Frequency Count',
+                        color: '#9ca3af',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    ticks: { color: '#9ca3af' },
+                    grid: { color: '#3d4456' }
+                }
+            }
+        }
+    });
+}
+
 function showNoDataMessage(canvasId, message) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -523,7 +704,7 @@ export function initTimeKeywordManagement() {
         const brandName = brandSelector ? brandSelector.value : 'mamypoko';
 
         try {
-            await add_brand_keyword({ brand_name: brandName, keyword: keyword });
+            await add_brand_words({ brand_name: brandName, keywords: [keyword] });
             console.log(`Added keyword: ${keyword} for brand: ${brandName}`);
 
             // Track in localStorage
@@ -606,7 +787,7 @@ async function displayTimeCustomKeywords(brandName) {
 
 async function removeTimeKeyword(brandName, keyword) {
     try {
-        await remove_brand_keyword({ brand_name: brandName, keyword: keyword });
+        await remove_brand_words({ brand_name: brandName, keyword: keyword });
         console.log(`Removed keyword: ${keyword} for brand: ${brandName}`);
 
         // Remove from localStorage
@@ -896,6 +1077,234 @@ function displaySentimentComparisonExamples(compareData, time1, time2) {
 
     container.appendChild(col1);
     container.appendChild(col2);
+}
+
+// ---- BRAND KEYWORD WORD FILTERING ----
+export function initBrandKeywordFilter() {
+    const filterInput = document.getElementById('brandKeywordFilterInput');
+    const hideBtn = document.getElementById('hideBrandKeywordBtn');
+
+    if (!filterInput || !hideBtn) {
+        console.error('Brand keyword filter elements not found');
+        return;
+    }
+
+    // Handle Enter key to hide word
+    filterInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            hideBtn.click();
+        }
+    });
+
+    // Handle Hide button click
+    hideBtn.addEventListener('click', async () => {
+        const input = filterInput.value.trim();
+        if (!input) return;
+
+        const brandSelector = document.getElementById('brandSelector');
+        const brandName = brandSelector ? brandSelector.value : null;
+
+        if (!brandName) {
+            alert('Please select a brand first');
+            return;
+        }
+
+        // Split by comma or space and add each word
+        const words = input.split(/[\s,]+/).filter(w => w.length > 0);
+
+        try {
+            // Remove each keyword from the backend
+            for (const word of words) {
+                await remove_brand_words({ brand_name: brandName, keyword: word });
+                console.log(`Removed keyword: ${word} for brand: ${brandName}`);
+                hiddenBrandKeywords.add(word.toLowerCase());
+            }
+
+            // Clear input
+            filterInput.value = '';
+
+            // Clear cache to force fresh data fetch
+            chartCache.clear('keywordCompareChart');
+            console.log('[Hide Keyword] Cleared cache for keywordCompareChart');
+
+            // Reload chart with filtered keywords
+            reloadBrandKeywordChart();
+
+            // Update hidden words display
+            displayBrandHiddenWords();
+        } catch (err) {
+            console.error('Error removing keywords:', err);
+            alert('Failed to remove keywords. Please try again.');
+        }
+    });
+
+    // Display existing hidden words on load
+    displayBrandHiddenWords();
+}
+
+function displayBrandHiddenWords() {
+    const container = document.getElementById('brandKeywordHiddenWordsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (hiddenBrandKeywords.size === 0) {
+        const emptyMsg = document.createElement('span');
+        emptyMsg.className = 'text-gray-500 text-sm';
+        emptyMsg.textContent = 'No hidden words';
+        container.appendChild(emptyMsg);
+        return;
+    }
+
+    hiddenBrandKeywords.forEach(word => {
+        const tag = document.createElement('div');
+        tag.className = 'flex items-center gap-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm';
+        tag.innerHTML = `
+            <span>${word}</span>
+            <button class="hover:text-red-300 font-bold" data-word="${word}">×</button>
+        `;
+
+        // Add remove handler
+        tag.querySelector('button').addEventListener('click', (e) => {
+            const wordToRemove = e.target.getAttribute('data-word');
+            removeBrandHiddenWord(wordToRemove);
+        });
+
+        container.appendChild(tag);
+    });
+}
+
+async function removeBrandHiddenWord(word) {
+    const brandSelector = document.getElementById('brandSelector');
+    const brandName = brandSelector ? brandSelector.value : null;
+
+    if (!brandName) {
+        alert('Please select a brand first');
+        return;
+    }
+
+    try {
+        // Note: Removing from hidden list doesn't add it back to the brand
+        // The keyword was already removed from the backend when it was hidden
+        // This just removes it from the local hidden list
+        hiddenBrandKeywords.delete(word.toLowerCase());
+
+        // Reload chart with filtered keywords
+        reloadBrandKeywordChart();
+
+        // Update display
+        displayBrandHiddenWords();
+    } catch (err) {
+        console.error('Error removing hidden word:', err);
+    }
+}
+
+function reloadBrandKeywordChart() {
+    const brandSelector = document.getElementById('brandSelector');
+    const granularity = document.getElementById('keywordGranularitySelector')?.value;
+    const time1 = document.getElementById('keywordTime1Input')?.value.trim();
+    const time2 = document.getElementById('keywordTime2Input')?.value.trim();
+
+    if (brandSelector && granularity && time1 && time2) {
+        const brandName = brandSelector.value;
+        loadKeywordComparison(brandName, granularity, time1, time2);
+    }
+}
+
+// ---- BRAND PERCEPTION WORD FILTERING ----
+export function initBrandPerceptionFilter() {
+    const filterInput = document.getElementById('brandPerceptionWordFilterInput');
+    const hideBtn = document.getElementById('hideBrandPerceptionWordBtn');
+
+    if (!filterInput || !hideBtn) {
+        console.error('Brand perception filter elements not found');
+        return;
+    }
+
+    // Handle Enter key to hide word
+    filterInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            hideBtn.click();
+        }
+    });
+
+    // Handle Hide button click
+    hideBtn.addEventListener('click', () => {
+        const input = filterInput.value.trim();
+        if (!input) return;
+
+        // Split by comma or space and add each word
+        const words = input.split(/[\s,]+/).filter(w => w.length > 0);
+        words.forEach(word => {
+            hiddenBrandPerceptionWords.add(word.toLowerCase());
+        });
+
+        // Clear input
+        filterInput.value = '';
+
+        // Reload chart with filtered words
+        reloadBrandPerceptionChart();
+
+        // Update hidden words display
+        displayBrandPerceptionHiddenWords();
+    });
+
+    // Display existing hidden words on load
+    displayBrandPerceptionHiddenWords();
+}
+
+function displayBrandPerceptionHiddenWords() {
+    const container = document.getElementById('brandPerceptionHiddenWordsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (hiddenBrandPerceptionWords.size === 0) {
+        const emptyMsg = document.createElement('span');
+        emptyMsg.className = 'text-gray-500 text-sm';
+        emptyMsg.textContent = 'No hidden words';
+        container.appendChild(emptyMsg);
+        return;
+    }
+
+    hiddenBrandPerceptionWords.forEach(word => {
+        const tag = document.createElement('div');
+        tag.className = 'flex items-center gap-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm';
+        tag.innerHTML = `
+            <span>${word}</span>
+            <button class="hover:text-red-300 font-bold" data-word="${word}">×</button>
+        `;
+
+        // Add remove handler
+        tag.querySelector('button').addEventListener('click', (e) => {
+            const wordToRemove = e.target.getAttribute('data-word');
+            removeBrandPerceptionHiddenWord(wordToRemove);
+        });
+
+        container.appendChild(tag);
+    });
+}
+
+function removeBrandPerceptionHiddenWord(word) {
+    hiddenBrandPerceptionWords.delete(word.toLowerCase());
+
+    // Reload chart with filtered words
+    reloadBrandPerceptionChart();
+
+    // Update display
+    displayBrandPerceptionHiddenWords();
+}
+
+function reloadBrandPerceptionChart() {
+    const brandSelector = document.getElementById('brandSelector');
+    const granularity = document.getElementById('brandPerceptionGranularitySelector')?.value;
+    const time1 = document.getElementById('brandPerceptionTime1Input')?.value.trim();
+    const time2 = document.getElementById('brandPerceptionTime2Input')?.value.trim();
+
+    if (brandSelector && granularity && time1 && time2) {
+        const brandName = brandSelector.value;
+        loadBrandPerceptionComparison(brandName, granularity, time1, time2);
+    }
 }
 
 // Clear cache when global filters change (only register once)
